@@ -19,24 +19,31 @@ jobs:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
-            arch: native
-          - os: ubuntu-24.04-arm
-            arch: native
-          - os: macos-14-large
-            arch: native
+            arch: x86_64
+          - os: ubuntu-latest
+            arch: aarch64
           - os: macos-14
-            arch: native
+            arch: arm64
+          - os: macos-13
+            arch: x86_64
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU (for Linux aarch64 emulation)
+        if: matrix.arch == 'aarch64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.3.1
         env:
-          CIBW_BUILD: "cp313-manylinux_x86_64 cp313-manylinux_aarch64 cp313-macosx_x86_64 cp313-macosx_arm64"
+          CIBW_BUILD: "cp313-*"
           CIBW_ARCHS: "${{ matrix.arch }}"
           CIBW_MANYLINUX_X86_64_IMAGE: "quay.io/pypa/manylinux2014_x86_64"
           CIBW_MANYLINUX_AARCH64_IMAGE: "quay.io/pypa/manylinux2014_aarch64"
@@ -59,7 +66,7 @@ jobs:
           output-dir: wheelhouse
           config-file: "{package}/pyproject.toml"
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v4
         with:
           name: cibw-wheels-${{ runner.os }}-${{ runner.arch }}
           path: ./wheelhouse/*.whl
@@ -80,7 +87,7 @@ jobs:
 
     steps:
     - name: Download all the dists
-      uses: actions/download-artifact@v7
+      uses: actions/download-artifact@v4
       with:
         pattern: cibw-wheels-*
         merge-multiple: true
@@ -108,7 +115,7 @@ jobs:
 
     steps:
     - name: Download all the dists
-      uses: actions/download-artifact@v7
+      uses: actions/download-artifact@v4
       with:
         pattern: cibw-wheels-*
         merge-multiple: true
