@@ -108,6 +108,11 @@ def build_amd():
         f"-DCMAKE_INSTALL_PREFIX={DIST_DIR}",
         "-DCMAKE_INSTALL_LIBDIR=lib",
         "-DCMAKE_BUILD_TYPE=Release",
+        # Point cmake at our already-built OpenBLAS so SuiteSparse_config
+        # FindBLAS succeeds even inside a bare manylinux container.
+        f"-DCMAKE_PREFIX_PATH={DIST_DIR}",
+        "-DBLA_VENDOR=OpenBLAS",
+        "-DBLA_STATIC=ON",
         # Build static libs only; no shared libs to bundle.
         "-DBUILD_SHARED_LIBS=OFF",
         "-DBUILD_STATIC_LIBS=ON",
@@ -143,7 +148,12 @@ def build_nauty():
     inc = os.path.join(DIST_DIR, "include", "nauty")
     os.makedirs(inc, exist_ok=True)
 
-    shutil.copy2(os.path.join(src, "libnauty.a"), os.path.join(LIB_DIR, "libnauty.a"))
+    # nauty's Makefile produces "nauty.a" from source (distro packages rename
+    # it to libnauty.a); accept either name.
+    src_lib = os.path.join(src, "libnauty.a")
+    if not os.path.exists(src_lib):
+        src_lib = os.path.join(src, "nauty.a")
+    shutil.copy2(src_lib, os.path.join(LIB_DIR, "libnauty.a"))
     for h in _glob.glob(os.path.join(src, "*.h")):
         shutil.copy2(h, inc)
 
