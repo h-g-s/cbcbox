@@ -152,11 +152,13 @@ def build_amd():
         f"-DCMAKE_INSTALL_PREFIX={DIST_DIR}",
         "-DCMAKE_INSTALL_LIBDIR=lib",
         "-DCMAKE_BUILD_TYPE=Release",
-        # Point cmake at our already-built OpenBLAS so SuiteSparse_config
-        # FindBLAS succeeds even inside a bare manylinux container.
+        # AMD is a pure integer/combinatorial library that doesn't use BLAS
+        # or LAPACK at all. Disable BLAS detection so cmake doesn't run a
+        # FindBLAS link test (which would fail for a freshly-built static
+        # OpenBLAS missing its gfortran runtime libs at test time).
         f"-DCMAKE_PREFIX_PATH={DIST_DIR}",
-        "-DBLA_VENDOR=OpenBLAS",
-        "-DBLA_STATIC=ON",
+        "-DSUITESPARSE_USE_BLAS=OFF",
+        "-DSUITESPARSE_USE_LAPACK=OFF",
         # Build static libs only; no shared libs to bundle.
         "-DBUILD_SHARED_LIBS=OFF",
         "-DBUILD_STATIC_LIBS=ON",
@@ -263,7 +265,10 @@ def build_coin_or():
             extra += ["--without-lapack"]
 
         configure = os.path.join(src, "configure")
-        run(configure, *common, *extra, cwd=bld, env=env)
+        # clang (macOS) requires C++17 mode to accept aggregate assignment from
+        # braced initializer lists (e.g. CoinDynamicConflictGraph.cpp).
+        # -std=c++17 is harmless on GCC as well.
+        run(configure, *common, *extra, "CXXFLAGS=-std=c++17", cwd=bld, env=env)
         run("make", "-j", NPROC, cwd=bld)
         run("make", "install", cwd=bld)
 
