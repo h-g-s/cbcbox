@@ -24,18 +24,18 @@ jobs:
         include:
           - os: ubuntu-latest
             arch: x86_64
-          - os: ubuntu-latest
+          - os: ubuntu-24.04-arm
             arch: aarch64
-          - os: macos-14
+          - os: macos-15
             arch: arm64
-          - os: macos-13
+          - os: macos-15-intel
             arch: x86_64
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up QEMU (for Linux aarch64 emulation)
-        if: matrix.arch == 'aarch64'
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'aarch64'
         uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
