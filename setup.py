@@ -136,8 +136,11 @@ def build_openblas():
     # libgfortran and libquadmath will be dynamic deps of the final binary;
     # bundle_dynamic_deps() detects and copies them into the wheel automatically.
     make_extra = ["BINARY=64"] if platform.system() == "Windows" else []
-    run("make", f"-j{NPROC}", "NO_SHARED=1", "NOTEST=1", *make_extra, cwd=src)
-    run("make", "NO_SHARED=1", "NOTEST=1", *make_extra, f"PREFIX={DIST_DIR}", "install", cwd=src)
+    # Build only the library ("libs" target), skipping OpenBLAS's own test suite.
+    # The default "all" target includes "tests" which can fail on some ARM runners
+    # (e.g. sbgemm bfloat16 test on ubuntu-24.04-arm) and isn't needed here.
+    run("make", f"-j{NPROC}", "libs", "NO_SHARED=1", *make_extra, cwd=src)
+    run("make", "NO_SHARED=1", *make_extra, f"PREFIX={DIST_DIR}", "install", cwd=src)
 
 
 # ── Build SuiteSparse AMD (static only) ───────────────────────────────────────
@@ -255,9 +258,12 @@ def build_coin_or():
             # will copy into the wheel.
             extra += [f"--with-lapack-lflags=-L{LIB_DIR} -lopenblas"]
         elif name == "Clp":
+            # Do NOT pass --with-amd-cflags here: Clp wraps #include <amd.h>
+            # inside extern "C" {} in ClpCholeskyUfl.cpp, and SuiteSparse v7's
+            # amd.h transitively includes C++ headers (<complex> etc.) which
+            # clang rejects inside extern "C".  AMD ordering is still available
+            # to CBC through CoinUtils which doesn't have this wrapping issue.
             extra += [
-                f"--with-amd-cflags=-I{amd_inc}",
-                f"--with-amd-lflags=-L{LIB_DIR} -lamd -lsuitesparseconfig -lm",
                 f"--with-lapack-lflags=-L{LIB_DIR} -lopenblas",
             ]
         elif name == "Cbc":

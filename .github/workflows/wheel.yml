@@ -62,10 +62,12 @@ jobs:
             which gfortran || brew install gcc
           # MSYS2 is pre-installed on windows-latest. Install the MinGW64
           # toolchain (GCC, gfortran, cmake, make) and MSYS2 autotools.
+          # 'make' (no prefix) is the MSYS2 /usr/bin/make needed by autotools;
+          # 'mingw-w64-x86_64-make' only provides mingw32-make and is not used.
           CIBW_BEFORE_ALL_WINDOWS: >
             C:\msys64\usr\bin\bash.exe -lc "pacman --noconfirm -S --needed
             mingw-w64-x86_64-gcc mingw-w64-x86_64-gcc-fortran
-            mingw-w64-x86_64-cmake mingw-w64-x86_64-make
+            mingw-w64-x86_64-cmake make
             autoconf automake libtool pkg-config"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
