@@ -136,8 +136,8 @@ def build_openblas():
     # libgfortran and libquadmath will be dynamic deps of the final binary;
     # bundle_dynamic_deps() detects and copies them into the wheel automatically.
     make_extra = ["BINARY=64"] if platform.system() == "Windows" else []
-    run("make", f"-j{NPROC}", "NO_SHARED=1", *make_extra, cwd=src)
-    run("make", "NO_SHARED=1", *make_extra, f"PREFIX={DIST_DIR}", "install", cwd=src)
+    run("make", f"-j{NPROC}", "NO_SHARED=1", "NOTEST=1", *make_extra, cwd=src)
+    run("make", "NO_SHARED=1", "NOTEST=1", *make_extra, f"PREFIX={DIST_DIR}", "install", cwd=src)
 
 
 # ── Build SuiteSparse AMD (static only) ───────────────────────────────────────
