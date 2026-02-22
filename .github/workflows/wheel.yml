@@ -30,6 +30,8 @@ jobs:
             arch: arm64
           - os: macos-15-intel
             arch: x86_64
+          - os: windows-latest
+            arch: AMD64
 
     steps:
       - uses: actions/checkout@v4
@@ -58,8 +60,17 @@ jobs:
           # Install it explicitly only if somehow absent.
           CIBW_BEFORE_ALL_MACOS: >
             which gfortran || brew install gcc
+          # MSYS2 is pre-installed on windows-latest. Install the MinGW64
+          # toolchain (GCC, gfortran, cmake, make) and MSYS2 autotools.
+          CIBW_BEFORE_ALL_WINDOWS: >
+            C:\msys64\usr\bin\bash.exe -lc "pacman --noconfirm -S --needed
+            mingw-w64-x86_64-gcc mingw-w64-x86_64-gcc-fortran
+            mingw-w64-x86_64-cmake mingw-w64-x86_64-make
+            autoconf automake libtool pkg-config"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
+          # DLL bundling is done by setup.py; skip delocate/delvewheel.
+          CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: ""
           CIBW_TEST_COMMAND: "python -m cbcbox -quit"
         with:
           package-dir: .

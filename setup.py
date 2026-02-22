@@ -3,6 +3,7 @@ import multiprocessing
 import os
 import platform
 import re
+import shlex
 import shutil
 import subprocess
 import tarfile
@@ -63,12 +64,51 @@ _MANYLINUX_ALLOWED = re.compile(
     r"|^(linux-vdso|linux-gate|ld-linux)"
 )
 
+# ── Windows / MSYS2-MinGW64 constants ────────────────────────────────────────
+
+# MSYS2 is pre-installed on windows-latest GitHub Actions runners.
+_MSYS2_BASH = r"C:\msys64\usr\bin\bash.exe"
+
+# DLLs that ship with Windows itself and must NOT be bundled.
+_WIN_SYS_DLL = re.compile(
+    r"^(kernel32|user32|ntdll|msvcrt|api-ms-win|ext-ms-win|advapi32|"
+    r"shell32|ole32|oleaut32|ws2_32|mswsock|bcrypt|crypt32|secur32|"
+    r"ucrtbase|vcruntime|hid|setupapi|cfgmgr32|imm32|version|winmm|"
+    r"shlwapi|rpcrt4|comctl32|comdlg32|gdi32|netapi32|psapi|dbghelp)"
+    r"\.dll$",
+    re.IGNORECASE,
+)
+
+
+def _win_to_msys2(s: str) -> str:
+    """Convert Windows absolute path references within *s* to MSYS2 format.
+
+    'C:\\foo\\bar'          →  '/c/foo/bar'
+    '--prefix=C:/foo/bar'   →  '--prefix=/c/foo/bar'
+    Strings without drive letters pass through unchanged.
+    """
+    return re.sub(
+        r'([A-Za-z]):[/\\]',
+        lambda m: f"/{m.group(1).lower()}/",
+        str(s),
+    ).replace("\\", "/")
+
 
 # ── Generic helpers ───────────────────────────────────────────────────────────
 
-def run(*cmd, **kw):
+def run(*cmd, cwd=None, env=None):
     print(f">>> {' '.join(str(c) for c in cmd)}", flush=True)
-    subprocess.run(list(cmd), check=True, **kw)
+    if platform.system() == "Windows":
+        # Route every build command through MSYS2/MinGW64 so that autotools,
+        # make, pkg-config, gfortran etc. are all available.
+        parts = ["export PATH=/mingw64/bin:/usr/bin:$PATH"]
+        if cwd:
+            parts.append(f"cd {shlex.quote(_win_to_msys2(str(cwd)))}")
+        parts.append(" ".join(shlex.quote(_win_to_msys2(str(c))) for c in cmd))
+        subprocess.run([_MSYS2_BASH, "-lc", " && ".join(parts)],
+                       check=True, env=env)
+    else:
+        subprocess.run(list(cmd), check=True, cwd=cwd, env=env)
 
 
 def clone_if_missing(name, url, branch="master"):
@@ -89,8 +129,9 @@ def build_openblas():
     # Build a static-only OpenBLAS with full LAPACK (Fortran) support.
     # libgfortran and libquadmath will be dynamic deps of the final binary;
     # bundle_dynamic_deps() detects and copies them into the wheel automatically.
-    run("make", f"-j{NPROC}", "NO_SHARED=1", cwd=src)
-    run("make", "NO_SHARED=1", f"PREFIX={DIST_DIR}", "install", cwd=src)
+    make_extra = ["BINARY=64"] if platform.system() == "Windows" else []
+    run("make", f"-j{NPROC}", "NO_SHARED=1", *make_extra, cwd=src)
+    run("make", "NO_SHARED=1", *make_extra, f"PREFIX={DIST_DIR}", "install", cwd=src)
 
 
 # ── Build SuiteSparse AMD (static only) ───────────────────────────────────────
@@ -103,8 +144,11 @@ def build_amd():
     )
     bld = os.path.join(THIS_DIR, "_build_SuiteSparse")
     os.makedirs(bld, exist_ok=True)
+    # On Windows use MinGW Makefiles so cmake drives the MinGW64 GCC toolchain.
+    cmake_gen = (["-G", "MinGW Makefiles"] if platform.system() == "Windows" else [])
     run(
         "cmake", src,
+        *cmake_gen,
         f"-DCMAKE_INSTALL_PREFIX={DIST_DIR}",
         "-DCMAKE_INSTALL_LIBDIR=lib",
         "-DCMAKE_BUILD_TYPE=Release",
@@ -165,9 +209,16 @@ def build_coin_or():
     nauty_inc = os.path.join(DIST_DIR, "include", "nauty")
 
     env = os.environ.copy()
-    env["PKG_CONFIG_PATH"] = (
-        os.path.join(LIB_DIR, "pkgconfig") + os.pathsep + env.get("PKG_CONFIG_PATH", "")
-    )
+    pkg_config_dir = os.path.join(LIB_DIR, "pkgconfig")
+    # MSYS2 bash uses ':' as separator and MSYS2-format paths.
+    if platform.system() == "Windows":
+        env["PKG_CONFIG_PATH"] = (
+            _win_to_msys2(pkg_config_dir) + ":" + env.get("PKG_CONFIG_PATH", "")
+        )
+    else:
+        env["PKG_CONFIG_PATH"] = (
+            pkg_config_dir + os.pathsep + env.get("PKG_CONFIG_PATH", "")
+        )
 
     # Flags common to every project.
     # zlib is intentionally kept enabled (it is manylinux2014-allowed and
@@ -202,9 +253,10 @@ def build_coin_or():
                 f"--with-lapack-lflags=-L{LIB_DIR} -lopenblas",
             ]
         elif name == "Cbc":
+            nauty_pthread = "" if platform.system() == "Windows" else " -lpthread"
             extra += [
                 f"--with-nauty-cflags=-I{nauty_inc}",
-                f"--with-nauty-lflags=-L{LIB_DIR} -lnauty -lpthread",
+                f"--with-nauty-lflags=-L{LIB_DIR} -lnauty{nauty_pthread}",
                 "--without-lapack",
             ]
         else:  # Osi, Cgl — do not use LAPACK directly
@@ -274,6 +326,31 @@ def _dynamic_deps_macos(path: str) -> list:
     return deps
 
 
+def _dynamic_deps_windows(path: str) -> dict:
+    """Return {dll_name: source_path} for non-system MinGW DLLs needed by *path*.
+
+    Uses objdump (from MinGW64) to list DLL imports, then resolves each name
+    against C:\\msys64\\mingw64\\bin\\.
+    """
+    mingw_bin = r"C:\msys64\mingw64\bin"
+    r = subprocess.run(
+        [_MSYS2_BASH, "-lc",
+         "export PATH=/mingw64/bin:/usr/bin:$PATH && "
+         f"objdump -p {shlex.quote(_win_to_msys2(path))} | grep 'DLL Name:'"],
+        capture_output=True, text=True,
+    )
+    deps = {}
+    for line in r.stdout.splitlines():
+        m = re.search(r"DLL Name:\s+(\S+\.dll)", line, re.IGNORECASE)
+        if m:
+            name = m.group(1)
+            if not _WIN_SYS_DLL.match(name):
+                candidate = os.path.join(mingw_bin, name)
+                if os.path.exists(candidate):
+                    deps[name] = candidate
+    return deps
+
+
 def bundle_dynamic_deps(binary: str, lib_dir: str, _visited: set = None):
     """
     Inspect *binary* for non-system dynamic dependencies and handle them so
@@ -285,6 +362,9 @@ def bundle_dynamic_deps(binary: str, lib_dir: str, _visited: set = None):
              reference inside *binary* to @rpath/name, sets the copied
              lib's own id to @rpath/name, and adds an @loader_path rpath
              to the binary.
+    Windows — copies each non-system MinGW DLL next to the binary (in its
+              own directory); no rpath patching needed since Windows searches
+              the executable's directory first.
 
     Recurses into copied libraries so transitive deps are also covered.
     If everything was statically linked this function is a no-op.
@@ -341,22 +421,39 @@ def bundle_dynamic_deps(binary: str, lib_dir: str, _visited: set = None):
                 )
             bundle_dynamic_deps(dst, lib_dir, _visited)
 
+    elif platform.system() == "Windows":
+        # On Windows the loader finds DLLs in the same directory as the
+        # executable. Copy all non-system MinGW DLLs there and recurse for
+        # transitive dependencies (libgfortran → libquadmath, etc.).
+        bin_dir = os.path.dirname(os.path.realpath(binary))
+        for name, src_path in _dynamic_deps_windows(binary).items():
+            if name in _visited:
+                continue
+            _visited.add(name)
+            dst = os.path.join(bin_dir, name)
+            if not os.path.exists(dst):
+                shutil.copy2(src_path, dst)
+                os.chmod(dst, 0o755)
+            bundle_dynamic_deps(dst, lib_dir, _visited)
+
 
 # ── Main build ────────────────────────────────────────────────────────────────
 
-if not os.path.exists(os.path.join(DIST_DIR, "bin", "cbc")):
+_cbc_exe = "cbc.exe" if platform.system() == "Windows" else "cbc"
+
+if not os.path.exists(os.path.join(DIST_DIR, "bin", _cbc_exe)):
     build_openblas()
     build_amd()
     build_nauty()
     build_coin_or()
 
-# Patch rpaths and bundle any dynamic deps that slipped through
-# (e.g. when only shared AMD / nauty was available on the build machine).
-if os.name != "nt":
-    for _bin_name in ["cbc", "clp"]:
-        _bin_path = os.path.join(DIST_DIR, "bin", _bin_name)
-        if os.path.exists(_bin_path):
-            bundle_dynamic_deps(_bin_path, LIB_DIR)
+# Patch rpaths / bundle DLLs for every built binary.
+for _bin_name in [_cbc_exe, "clp.exe" if platform.system() == "Windows" else "clp"]:
+    _bin_path = os.path.join(DIST_DIR, "bin", _bin_name)
+    if os.path.exists(_bin_path):
+        # On Windows bundle into bin/ so DLLs sit next to the executable.
+        _bundle_dir = os.path.join(DIST_DIR, "bin") if platform.system() == "Windows" else LIB_DIR
+        bundle_dynamic_deps(_bin_path, _bundle_dir)
 
 
 # ── Package ───────────────────────────────────────────────────────────────────
