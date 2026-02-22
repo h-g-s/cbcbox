@@ -1,37 +1,40 @@
-# highsbox
+# cbcbox
 
-[![](https://img.shields.io/pypi/v/highsbox.svg?color=brightgreen)](https://pypi.org/pypi/highsbox/)
+[![](https://img.shields.io/pypi/v/cbcbox.svg?color=brightgreen)](https://pypi.org/pypi/cbcbox/)
 
-This is the python wheel distribution for binaries of [HiGHS](https://github.com/ERGO-Code/HiGHS) optimizer.
+Python wheel distribution of pre-built binaries for the
+[CBC](https://github.com/coin-or/Cbc) MILP solver (COIN-OR Branch and Cut),
+built from the latest master branch of the COIN-OR repositories.
 
-It is built for the following platforms:
-- Windows (x86_64)
-- Linux (x86_64)
-- Linux (aarch64)
-- MacOS (x86_64)
-- MacOS (arm64)
+Supported platforms:
+- Linux (x86\_64, aarch64) — manylinux2014
+- macOS (x86\_64, arm64)
+
+Built with:
+- **OpenBLAS** — optimised BLAS/LAPACK (libgfortran bundled in the wheel)
+- **AMD** (SuiteSparse) — sparse matrix reordering for the simplex factorisation
+- **Nauty** — symmetry detection
+- **zlib** — read compressed MPS/LP files
 
 ```
-pip install highsbox
+pip install cbcbox
 ```
 
-After installation, you can use `python -m highsbox` to invoke the `highs` command-line tool.
+After installation, invoke the `cbc` command-line solver via:
 
 ```
->>> python -m highsbox --version
-HiGHS version 1.7.0 Githash 50670fd. Copyright (c) 2024 HiGHS under MIT licence terms
+python -m cbcbox mymodel.lp
 ```
 
-It includes the `highs` command-line tool, the `highs.lib`/`highs.dll`/`libhighs.so` library and the `Highs.h` header files.
-
-Their paths can be found using the `highsbox` module:
+The paths to the installed binary, headers and libraries are available
+from the Python module:
 
 ```python
->>> import highsbox
->>> highsbox.highs_bin_path()
-'D:\\mambaforge\\Lib\\site-packages\\highsbox\\highs_dist\\bin\\highs.exe'
->>> highsbox.highs_lib_dir()
-'D:\\mambaforge\\Lib\\site-packages\\highsbox\\highs_dist\\lib
->>> highsbox.highs_include_dir()
-'D:\\mambaforge\\Lib\\site-packages\\highsbox\\highs_dist\\include\\highs'
+>>> import cbcbox
+>>> cbcbox.cbc_bin_path()
+'/home/user/.venv/lib/python3.13/site-packages/cbcbox/cbc_dist/bin/cbc'
+>>> cbcbox.cbc_lib_dir()
+'/home/user/.venv/lib/python3.13/site-packages/cbcbox/cbc_dist/lib'
+>>> cbcbox.cbc_include_dir()
+'/home/user/.venv/lib/python3.13/site-packages/cbcbox/cbc_dist/include/coin'
 ```
