@@ -88,7 +88,7 @@ def _win_to_msys2(s: str) -> str:
     Strings without drive letters pass through unchanged.
     """
     return re.sub(
-        r'([A-Za-z]):[/\\]',
+        r'(?<![A-Za-z])([A-Za-z]):[/\\]',
         lambda m: f"/{m.group(1).lower()}/",
         str(s),
     ).replace("\\", "/")
@@ -114,7 +114,13 @@ def run(*cmd, cwd=None, env=None):
 def clone_if_missing(name, url, branch="master"):
     dest = os.path.join(THIS_DIR, name)
     if not os.path.exists(dest):
-        run("git", "clone", "--depth", "1", "--branch", branch, url, dest)
+        # Use native git directly — avoids routing through MSYS2 where git
+        # may not be on PATH, and avoids any path-conversion of the URL.
+        print(f">>> git clone --depth 1 --branch {branch} {url} {dest}", flush=True)
+        subprocess.run(
+            ["git", "clone", "--depth", "1", "--branch", branch, url, dest],
+            check=True,
+        )
     return dest
 
 
