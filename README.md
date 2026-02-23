@@ -75,14 +75,14 @@ in the following order:
 
 | Component | Version / branch | Purpose |
 |---|---|---|
-| **OpenBLAS** | v0.3.31 | Optimised BLAS/LAPACK for LP basis factorisation |
-| **AMD** (SuiteSparse v7.12.2) | v7.12.2 | Sparse matrix fill-reducing ordering |
-| **Nauty** | 2.8.9 | Symmetry detection for MIP presolve |
-| **CoinUtils** | master | Utility library (shared by all COIN-OR packages) |
-| **Osi** | master | Open Solver Interface |
-| **Clp** | master | Simplex LP solver (used as the MIP node relaxation) |
-| **Cgl** | master | Cut generation library |
 | **Cbc** | master | Branch-and-cut MIP solver |
+| **Cgl** | master | Cut generation library |
+| **Clp** | master | Simplex LP solver (used as the MIP node relaxation) |
+| **Osi** | master | Open Solver Interface |
+| **CoinUtils** | master | Utility library (shared by all COIN-OR packages) |
+| **Nauty** | 2.8.9 | Symmetry detection for MIP presolve |
+| **AMD** (SuiteSparse v7.12.2) | v7.12.2 | Sparse matrix fill-reducing ordering |
+| **OpenBLAS** | v0.3.31 | Optimised BLAS/LAPACK for LP basis factorisation |
 
 All COIN-OR components are linked **statically** into the final binaries.
 OpenBLAS is shipped as a shared library and bundled inside the wheel.
