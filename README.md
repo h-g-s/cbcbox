@@ -1,7 +1,5 @@
 # cbcbox
 
-[![](https://img.shields.io/pypi/v/cbcbox.svg?color=brightgreen)](https://pypi.org/pypi/cbcbox/)
-
 **cbcbox** is a Python wheel distribution of pre-built, self-contained binaries for the
 [CBC](https://github.com/coin-or/Cbc) MILP solver (COIN-OR Branch and Cut),
 built from the latest master branch of the COIN-OR repositories.
@@ -21,6 +19,31 @@ wheel — no system libraries or separate installation steps are needed.
 
 ## Installation
 
+> **Note:** cbcbox is not yet published to PyPI. Use the manual installation
+> instructions below to install directly from the pre-built wheel artifacts.
+
+### Installing from a pre-built wheel (recommended)
+
+1. Go to the [Actions tab](../../actions/workflows/wheel.yml) of this repository.
+2. Open the latest successful workflow run.
+3. Download the artifact matching your platform:
+
+   | Artifact name | Platform |
+   |---|---|
+   | `cibw-wheels-Linux-X64` | Linux x86\_64 |
+   | `cibw-wheels-Linux-ARM64` | Linux aarch64 |
+   | `cibw-wheels-macOS-ARM64` | macOS Apple Silicon |
+   | `cibw-wheels-macOS-X64` | macOS x86\_64 |
+   | `cibw-wheels-Windows-X64` | Windows AMD64 |
+
+4. Unzip the artifact and install the `.whl` file:
+
+   ```bash
+   pip install cbcbox-*.whl
+   ```
+
+### Installing from PyPI (once available)
+
 ```
 pip install cbcbox
 ```
@@ -34,11 +57,18 @@ Invoke the CBC solver directly via the Python module entry point:
 ```bash
 python -m cbcbox mymodel.lp -solve -quit
 python -m cbcbox mymodel.mps.gz -solve -quit
-python -m cbcbox mymodel.mps -solve -quit -sec 60
+python -m cbcbox mymodel.mps -seconds 60 -timem elapsed -solve -quit
+python -m cbcbox mymodel.mps -dualp pesteep -solve -quit
 ```
 
 CBC accepts LP, MPS and compressed MPS (`.mps.gz`) files. Pass `-help` for the
 full list of options, or `-quit` to exit after solving.
+
+Parallel branch-and-cut is supported — use `-threads=N` to enable it:
+
+```bash
+python -m cbcbox mymodel.mps -threads=4 -solve -quit
+```
 
 ### Python API
 
@@ -85,7 +115,9 @@ in the following order:
 | **OpenBLAS** | v0.3.31 | Optimised BLAS/LAPACK for LP basis factorisation |
 
 All COIN-OR components are linked into both **static** (`.a`) and **shared**
-(`.so` / `.dylib` / `.dll`) libraries. The shared libraries are patched with
+(`.so` / `.dylib`) libraries on Linux and macOS. On Windows only **shared**
+libraries (`.dll`) are produced — MinGW's autotools does not support building
+static and DLL simultaneously. The shared libraries are patched with
 self-relative RPATHs and bundled inside the wheel, making them directly usable
 via `cffi` or `ctypes` without any system installation.
 
@@ -174,18 +206,23 @@ installed wheel to verify correctness.
 ### Integration tests
 
 The test suite (`pytest`) solves two MIP instances and checks the optimal
-objective values:
+objective values, both in single-threaded and parallel (2-thread) modes:
 
-| Instance | Rows | Columns | Expected optimal |
-|---|---|---|---|
-| `pp08a.mps.gz` | 240 | 182 | 7350 |
-| `sprint_hidden06_j.mps.gz` | 3694 | 10210 | 130 |
+| Test | Instance | Expected optimal |
+|---|---|---|
+| `test_solve[pp08a]` | `pp08a.mps.gz` (240×182) | 7350 |
+| `test_solve[sprint_hidden06_j]` | `sprint_hidden06_j.mps.gz` (3694×10210) | 130 |
+| `test_solve_parallel[pp08a]` | same, `-threads=3` | 7350 |
+| `test_solve_parallel[sprint_hidden06_j]` | same, `-threads=3` | 130 |
 
-### Publishing
+The parallel tests verify that `--enable-cbc-parallel` is functional.
 
-To publish wheels to PyPI, trigger the workflow manually and select
-`pypi` (or `testpypi`) in the **Publish** input.  Trusted Publisher
-(OIDC) authentication is used — no API tokens are stored as secrets.
+### Publishing to PyPI
+
+> **Note:** cbcbox is not yet registered on PyPI.  When ready, trigger the
+> workflow manually and select `pypi` (or `testpypi`) in the **Publish** input.
+> Trusted Publisher (OIDC) authentication is used — no API tokens are stored as
+> secrets.
 
 ## License
 

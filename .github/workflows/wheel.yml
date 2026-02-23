@@ -85,6 +85,13 @@ jobs:
           name: cibw-wheels-${{ runner.os }}-${{ runner.arch }}
           path: ./wheelhouse/*.whl
 
+      - name: Upload performance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-report-${{ matrix.os }}-${{ matrix.arch }}
+          path: tests/perf_report.md
+
   publish-to-testpypi:
     name: Publish Python wheels to TestPyPI
     needs:

@@ -247,7 +247,7 @@ def build_coin_or():
     common = [
         f"--prefix={DIST_DIR}",
         f"--libdir={LIB_DIR}",
-        "--enable-static",
+        "--enable-static" if platform.system() != "Windows" else "--disable-static",
         "--enable-shared",      # produce .so/.dylib/.dll for cffi use
         "--disable-readline",   # libreadline not manylinux-allowed
         "--disable-bzlib",      # libbz2 not manylinux-allowed
