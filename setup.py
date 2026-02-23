@@ -533,7 +533,7 @@ with TemporaryDirectory() as tmp_dir:
 
     setup(
         name="cbcbox",
-        version="2.10.12",
+        version="2.901",
         cmdclass=cmdclass,
         description="cbcbox: binary distribution of the CBC MILP solver",
         long_description=long_description,

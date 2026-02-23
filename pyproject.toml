@@ -2,6 +2,24 @@
 requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "cbcbox"
+version = "2.901"
+description = "Binary distribution of the CBC MILP solver (COIN-OR Branch and Cut)"
+readme = "README.md"
+license = { text = "EPL-2.0" }
+requires-python = ">=3.8"
+keywords = ["cbc", "milp", "optimization", "coin-or", "solver", "mixed-integer"]
+classifiers = [
+    "License :: OSI Approved :: Eclipse Public License 2.0 (EPL-2.0)",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/h-g-s/cbcbox"
+"Bug Tracker" = "https://github.com/h-g-s/cbcbox/issues"
+
 [tool.cibuildwheel]
-# Super-verbose output for debugging purpose
-build-verbosity = 3
+build-verbosity = 1
