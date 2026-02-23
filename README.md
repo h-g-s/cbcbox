@@ -7,6 +7,20 @@ built from the latest master branch of the COIN-OR repositories.
 All dynamic dependencies (OpenBLAS, libgfortran, etc.) are bundled inside the
 wheel — no system libraries or separate installation steps are needed.
 
+### Highlights
+
+- **Parallel branch-and-cut** — built with `--enable-cbc-parallel`. Use `-threads=N` to
+  solve with multiple threads. CBC distributes the branch-and-bound tree across threads,
+  giving significant speedups on multi-core machines for hard MIP instances.
+
+- **AMD fill-reducing ordering** — SuiteSparse AMD is compiled in, enabling the
+  high-quality `UniversityOfFlorida` Cholesky factorization for Clp's barrier (interior
+  point) solver. Compared to the built-in native Cholesky, AMD reordering produces much
+  less fill-in on large sparse problems, making barrier substantially faster.
+  Activate it with `-barrier -cholesky UniversityOfFlorida` (see [barrier usage](#barrier-interior-point-solver) below).
+
+- **Optimised BLAS** — linked against OpenBLAS for fast dense linear algebra.
+
 ## Supported platforms
 
 | Platform | Wheel tag |
@@ -19,8 +33,8 @@ wheel — no system libraries or separate installation steps are needed.
 
 ## Installation
 
-> **Note:** cbcbox is not yet published to PyPI. Use the manual installation
-> instructions below to install directly from the pre-built wheel artifacts.
+> **Note:** cbcbox is now available on PyPI — `pip install cbcbox`.
+> Pre-built wheel artifacts are also available from the CI runs (see below).
 
 ### Installing from a pre-built wheel (recommended)
 
@@ -42,9 +56,9 @@ wheel — no system libraries or separate installation steps are needed.
    pip install cbcbox-*.whl
    ```
 
-### Installing from PyPI (once available)
+### Installing from PyPI
 
-```
+```bash
 pip install cbcbox
 ```
 
@@ -64,11 +78,35 @@ python -m cbcbox mymodel.mps -dualp pesteep -solve -quit
 CBC accepts LP, MPS and compressed MPS (`.mps.gz`) files. Pass `-help` for the
 full list of options, or `-quit` to exit after solving.
 
-Parallel branch-and-cut is supported — use `-threads=N` to enable it:
+#### Parallel branch-and-cut
+
+This build includes parallel branch-and-cut (`--enable-cbc-parallel`).
+Use `-threads=N` to distribute the search tree across N threads:
 
 ```bash
-python -m cbcbox mymodel.mps -threads=4 -solve -quit
+python -m cbcbox mymodel.mps -threads=4 -timem elapsed -solve -quit
 ```
+
+Use `-timem elapsed` when running parallel so that time limits and reported
+times reflect wall-clock seconds rather than CPU-time (which would be ~N× the
+wall time).
+
+#### Barrier (interior-point) solver
+
+Clp's barrier solver can be faster than simplex for large LP relaxations.
+This build includes SuiteSparse AMD, which enables the high-quality
+`UniversityOfFlorida` Cholesky factorization — significantly reducing fill-in
+compared to the built-in native Cholesky:
+
+```bash
+# Solve LP relaxation with barrier + AMD Cholesky, then crossover to simplex basis
+python -m cbcbox mymodel.mps -barrier -cholesky UniversityOfFlorida -solve -quit
+
+# Useful as a root-node strategy inside MIP (let CBC use simplex for B&B):
+python -m cbcbox mymodel.mps -barrier -cholesky UniversityOfFlorida -solve -quit
+```
+
+Without AMD, only `-cholesky native` (less efficient) is available.
 
 ### Python API
 
