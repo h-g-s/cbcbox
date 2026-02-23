@@ -205,7 +205,8 @@ def build_nauty():
             tf.extractall(THIS_DIR)
 
     # nauty ships its own configure; no --prefix support, so install manually.
-    run("./configure", cwd=src)
+    # Pass CFLAGS=-fPIC so the static archive can be linked into shared libs.
+    run("./configure", "CFLAGS=-O2 -fPIC", cwd=src)
     run("make", "-j", NPROC, cwd=src)
 
     os.makedirs(LIB_DIR, exist_ok=True)
