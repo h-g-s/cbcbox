@@ -18,20 +18,18 @@ CBC_TIME_LIMIT = 240
 
 
 def _solve_and_get_obj(mps_file: str, time_limit: int = CBC_TIME_LIMIT,
-                       timeout: int = 300) -> float:
+                       threads: int = 1, timeout: int = 300) -> float:
     """Run CBC on *mps_file*, return the optimal objective value.
 
     Parses the final "Optimal - objective value X" line specifically to avoid
     matching intermediate lines such as:
         "After applying Clique Strengthening continuous objective value is ..."
     """
-    result = subprocess.run(
-        [cbcbox.cbc_bin_path(), mps_file,
-         f"-seconds={time_limit}", "-solve", "-quit"],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
+    cmd = [cbcbox.cbc_bin_path(), mps_file, f"-seconds={time_limit}"]
+    if threads > 1:
+        cmd += [f"-threads={threads}"]
+    cmd += ["-solve", "-quit"]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     output = result.stdout + result.stderr
     # Look for the definitive result lines (last wins in case of duplicates):
     #   "Optimal - objective value 7350.00000000"
@@ -66,3 +64,11 @@ def test_solve(filename, expected):
     mps_file = os.path.join(DATA_DIR, filename)
     obj = _solve_and_get_obj(mps_file)
     assert abs(obj - expected) < 1e-4, f"Expected {expected}, got {obj}"
+
+
+@pytest.mark.parametrize("filename,expected", CASES)
+def test_solve_parallel(filename, expected):
+    """Same instances solved with 2 threads to verify --enable-cbc-parallel."""
+    mps_file = os.path.join(DATA_DIR, filename)
+    obj = _solve_and_get_obj(mps_file, threads=2)
+    assert abs(obj - expected) < 1e-4, f"Expected {expected}, got {obj} (2 threads)"
