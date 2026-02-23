@@ -91,9 +91,10 @@ def _win_to_msys2(s: str) -> str:
     """
     s = str(s)
     # Protect URL schemes (e.g. "https://") so they aren't misidentified as
-    # Windows drive letters.  Use NUL bytes as a placeholder that can't appear
-    # in a normal path or shell argument.
-    s = re.sub(r'([A-Za-z]+)://', r'\1\x00\x00', s)
+    # Windows drive letters.  Use a lambda so Python doesn't interpret \x in
+    # the replacement string (re.sub string replacement doesn't allow \x).
+    placeholder = "\x00\x00"
+    s = re.sub(r'([A-Za-z]+)://', lambda m: m.group(1) + placeholder, s)
     # Convert Windows drive letters to MSYS2 /x/ format.
     s = re.sub(r'([A-Za-z]):[/\\]', lambda m: f"/{m.group(1).lower()}/", s)
     # Restore URL schemes and normalise remaining back-slashes.

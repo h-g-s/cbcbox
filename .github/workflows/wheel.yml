@@ -46,6 +46,7 @@ jobs:
         uses: pypa/cibuildwheel@v3.3.1
         env:
           CIBW_BUILD: "cp313-*"
+          CIBW_SKIP: "*musllinux*"
           CIBW_ARCHS: "${{ matrix.arch }}"
           CIBW_MANYLINUX_X86_64_IMAGE: "quay.io/pypa/manylinux2014_x86_64"
           CIBW_MANYLINUX_AARCH64_IMAGE: "quay.io/pypa/manylinux2014_aarch64"
