@@ -288,6 +288,9 @@ def build_coin_or():
                 f"--with-nauty-cflags=-I{nauty_parent}",
                 f"--with-nauty-lflags=-L{LIB_DIR} -lnauty{nauty_pthread}",
                 "--without-lapack",
+                # Enable multi-threaded MIP search (parallel branch-and-bound).
+                # Requires pthreads — available on all supported platforms.
+                "--enable-cbc-parallel",
             ]
         else:  # Osi, Cgl — do not use LAPACK directly
             extra += ["--without-lapack"]
