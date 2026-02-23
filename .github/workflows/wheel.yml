@@ -90,7 +90,33 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: perf-report-${{ matrix.os }}-${{ matrix.arch }}
-          path: tests/perf_report.md
+          path: |
+            tests/perf_report.md
+            tests/perf_report.json
+
+  combine_reports:
+    name: Combine performance reports
+    needs: build_wheels
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all performance reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: perf-report-*
+          path: perf_reports/
+
+      - name: Generate combined report
+        run: python3 .github/scripts/combine_perf_reports.py perf_reports perf_report_combined.md
+
+      - name: Upload combined report
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-report-combined
+          path: perf_report_combined.md
 
   publish-to-testpypi:
     name: Publish Python wheels to TestPyPI
