@@ -42,6 +42,21 @@ jobs:
         with:
           platforms: arm64
 
+      # Refresh MSYS2 package database and install the MinGW64 toolchain before
+      # cibuildwheel runs. Doing this as a dedicated step (rather than inside
+      # CIBW_BEFORE_ALL_WINDOWS) gives clearer error messages and avoids mirror
+      # failures caused by a stale pacman database.
+      - name: Set up MSYS2 toolchain (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: C:\msys64\usr\bin\bash.exe -l {0}
+        run: |
+          pacman -Sy --noconfirm
+          pacman -S --needed --noconfirm \
+            mingw-w64-x86_64-gcc \
+            mingw-w64-x86_64-gcc-fortran \
+            make \
+            autoconf automake libtool pkg-config
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.3.1
         env:
@@ -60,15 +75,8 @@ jobs:
           # Install it explicitly only if somehow absent.
           CIBW_BEFORE_ALL_MACOS: >
             which gfortran || brew install gcc
-          # MSYS2 is pre-installed on windows-latest. Install the MinGW64
-          # toolchain (GCC, gfortran, cmake, make) and MSYS2 autotools.
-          # 'make' (no prefix) is the MSYS2 /usr/bin/make needed by autotools;
-          # 'mingw-w64-x86_64-make' only provides mingw32-make and is not used.
-          CIBW_BEFORE_ALL_WINDOWS: >
-            C:\msys64\usr\bin\bash.exe -lc "pacman --noconfirm -S --needed
-            mingw-w64-x86_64-gcc mingw-w64-x86_64-gcc-fortran
-            make
-            autoconf automake libtool pkg-config"
+          # Toolchain already installed in the "Set up MSYS2 toolchain" step above.
+          CIBW_BEFORE_ALL_WINDOWS: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
           # DLL bundling is done by setup.py; skip delocate/delvewheel.
