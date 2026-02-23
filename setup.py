@@ -532,13 +532,9 @@ with TemporaryDirectory() as tmp_dir:
         shutil.copy2(os.path.join(THIS_DIR, "src", fname), os.path.join(tmp_dir, fname))
 
     setup(
-        name="cbcbox",
-        version="2.901",
         cmdclass=cmdclass,
-        description="cbcbox: binary distribution of the CBC MILP solver",
         long_description=long_description,
         long_description_content_type="text/markdown",
-        license="EPL-2.0",
         packages=["cbcbox"],
         zip_safe=False,
         package_dir={"cbcbox": tmp_dir},
