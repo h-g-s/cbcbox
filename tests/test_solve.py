@@ -13,26 +13,47 @@ CASES = [
     ("sprint_hidden06_j.mps.gz", 130.0),
 ]
 
+# CBC time limit for tests (seconds); prevents long runs on slow CI machines.
+CBC_TIME_LIMIT = 240
 
-def _solve_and_get_obj(mps_file: str, timeout: int = 300) -> float:
-    """Run CBC on *mps_file*, return the reported optimal objective value."""
+
+def _solve_and_get_obj(mps_file: str, time_limit: int = CBC_TIME_LIMIT,
+                       timeout: int = 300) -> float:
+    """Run CBC on *mps_file*, return the optimal objective value.
+
+    Parses the final "Optimal - objective value X" line specifically to avoid
+    matching intermediate lines such as:
+        "After applying Clique Strengthening continuous objective value is ..."
+    """
     result = subprocess.run(
-        [cbcbox.cbc_bin_path(), mps_file, "-solve", "-quit"],
+        [cbcbox.cbc_bin_path(), mps_file,
+         f"-seconds={time_limit}", "-solve", "-quit"],
         capture_output=True,
         text=True,
         timeout=timeout,
     )
     output = result.stdout + result.stderr
-    # CBC prints "Optimal - objective value XXXX.XXXXXXXX"
+    # Look for the definitive result lines (last wins in case of duplicates):
+    #   "Optimal - objective value 7350.00000000"
+    #   "Result - Stopped on time limit\nObjective value: 130.000"
+    obj_value = None
     for line in output.splitlines():
-        if "objective value" in line.lower():
+        low = line.lower()
+        if low.startswith("optimal") and "objective value" in low:
             try:
-                return float(line.split()[-1])
+                obj_value = float(line.split()[-1])
             except ValueError:
-                continue
-    raise AssertionError(
-        f"Could not find 'objective value' in CBC output.\nOutput:\n{output}"
-    )
+                pass
+        elif low.startswith("objective value") or low.startswith("objective:"):
+            try:
+                obj_value = float(line.split()[-1])
+            except ValueError:
+                pass
+    if obj_value is None:
+        raise AssertionError(
+            f"Could not parse final objective from CBC output.\nOutput:\n{output}"
+        )
+    return obj_value
 
 
 def test_cbc_binary_exists():
