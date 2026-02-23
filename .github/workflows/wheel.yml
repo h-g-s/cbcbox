@@ -50,12 +50,11 @@ jobs:
           CIBW_MANYLINUX_X86_64_IMAGE: "quay.io/pypa/manylinux2014_x86_64"
           CIBW_MANYLINUX_AARCH64_IMAGE: "quay.io/pypa/manylinux2014_aarch64"
           # gfortran: needed to build OpenBLAS with full LAPACK support.
-          # cmake: needed to build SuiteSparse AMD.
           # patchelf: used by bundle_dynamic_deps to set $ORIGIN rpaths and
           #           read ELF sonames of bundled libs (libgfortran, etc.).
           CIBW_BEFORE_ALL_LINUX: >
             yum install -y gcc-gfortran &&
-            pip install cmake patchelf
+            pip install patchelf
           # gfortran ships with the pre-installed Xcode / GCC on macOS runners.
           # Install it explicitly only if somehow absent.
           CIBW_BEFORE_ALL_MACOS: >
@@ -67,7 +66,7 @@ jobs:
           CIBW_BEFORE_ALL_WINDOWS: >
             C:\msys64\usr\bin\bash.exe -lc "pacman --noconfirm -S --needed
             mingw-w64-x86_64-gcc mingw-w64-x86_64-gcc-fortran
-            mingw-w64-x86_64-cmake make
+            make
             autoconf automake libtool pkg-config"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""

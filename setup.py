@@ -132,18 +132,22 @@ def build_openblas():
         "https://github.com/xianyi/OpenBLAS.git",
         OPENBLAS_TAG,
     )
-    # Build a static-only OpenBLAS with full LAPACK (Fortran) support.
-    # libgfortran and libquadmath will be dynamic deps of the final binary;
-    # bundle_dynamic_deps() detects and copies them into the wheel automatically.
-    make_extra = ["BINARY=64"] if platform.system() == "Windows" else []
-    # Build only the library ("libs" target), skipping OpenBLAS's own test suite.
-    # The default "all" target includes "tests" which can fail on some ARM runners
-    # (e.g. sbgemm bfloat16 test on ubuntu-24.04-arm) and isn't needed here.
-    run("make", f"-j{NPROC}", "libs", "NO_SHARED=1", *make_extra, cwd=src)
-    run("make", "NO_SHARED=1", *make_extra, f"PREFIX={DIST_DIR}", "install", cwd=src)
+    # Use the explicit "libs" and "shared" targets so OpenBLAS's own test suite
+    # is never invoked (the default "all" target runs tests, which can fail on
+    # ARM runners).  Building both static and shared ensures that downstream
+    # configure scripts (CoinUtils, SuiteSparse) can link against the shared
+    # library during their feature-detection tests — static-only requires the
+    # Fortran runtime to be explicitly passed, which is fragile.
+    if platform.system() == "Windows":
+        # Windows: static only; shared DLL support requires extra mingw work.
+        run("make", f"-j{NPROC}", "libs", "BINARY=64", "NO_SHARED=1", cwd=src)
+        run("make", "BINARY=64", "NO_SHARED=1", f"PREFIX={DIST_DIR}", "install", cwd=src)
+    else:
+        run("make", f"-j{NPROC}", "libs", "shared", cwd=src)
+        run("make", f"PREFIX={DIST_DIR}", "install", cwd=src)
 
 
-# ── Build SuiteSparse AMD (static only) ───────────────────────────────────────
+# ── Build SuiteSparse AMD (static only, direct compilation) ──────────────────
 
 def build_amd():
     src = clone_if_missing(
@@ -151,36 +155,40 @@ def build_amd():
         "https://github.com/DrTimothyAldenDavis/SuiteSparse.git",
         SUITESPARSE_TAG,
     )
-    bld = os.path.join(THIS_DIR, "_build_SuiteSparse")
-    os.makedirs(bld, exist_ok=True)
-    # On Windows use MinGW Makefiles so cmake drives the MinGW64 GCC toolchain.
-    cmake_gen = (["-G", "MinGW Makefiles"] if platform.system() == "Windows" else [])
-    run(
-        "cmake", src,
-        *cmake_gen,
-        f"-DCMAKE_INSTALL_PREFIX={DIST_DIR}",
-        "-DCMAKE_INSTALL_LIBDIR=lib",
-        "-DCMAKE_BUILD_TYPE=Release",
-        # AMD is a pure integer/combinatorial library that doesn't use BLAS
-        # or LAPACK at all. Disable BLAS detection so cmake doesn't run a
-        # FindBLAS link test (which would fail for a freshly-built static
-        # OpenBLAS missing its gfortran runtime libs at test time).
-        f"-DCMAKE_PREFIX_PATH={DIST_DIR}",
-        "-DSUITESPARSE_USE_BLAS=OFF",
-        "-DSUITESPARSE_USE_LAPACK=OFF",
-        # Build static libs only; no shared libs to bundle.
-        "-DBUILD_SHARED_LIBS=OFF",
-        "-DBUILD_STATIC_LIBS=ON",
-        "-DSUITESPARSE_ENABLE_PROJECTS=amd",
-        "-DSUITESPARSE_USE_OPENMP=OFF",   # avoids libgomp in static link
-        "-DSUITESPARSE_USE_CUDA=OFF",
-        "-DSUITESPARSE_USE_FORTRAN=OFF",
-        "-DSUITESPARSE_DEMOS=OFF",
-        cwd=bld,
-    )
-    run("cmake", "--build", bld, "--config", "Release", "--parallel", NPROC)
-    run("cmake", "--install", bld)
-    # AMD_static → libamd.a, SuiteSparseConfig_static → libsuitesparseconfig.a
+    ss_dir  = os.path.join(src, "SuiteSparse_config")
+    amd_src = os.path.join(src, "AMD", "Source")
+    amd_inc = os.path.join(src, "AMD", "Include")
+
+    os.makedirs(LIB_DIR, exist_ok=True)
+    inc_out = os.path.join(DIST_DIR, "include", "suitesparse")
+    os.makedirs(inc_out, exist_ok=True)
+
+    # AMD is a pure combinatorial/integer library — it doesn't use BLAS or
+    # LAPACK at all.  Compiling directly from C source avoids the SuiteSparse
+    # cmake build system which unconditionally runs FindBLAS (and fails when
+    # only a static OpenBLAS is present because the link test needs the
+    # Fortran runtime libraries).
+    cc = os.environ.get("CC", "gcc")
+    cflags = ["-O2", "-fPIC", f"-I{ss_dir}", f"-I{amd_inc}"]
+
+    # SuiteSparse_config.c → libsuitesparseconfig.a
+    ss_obj = os.path.join(THIS_DIR, "_ss_config.o")
+    run(cc, *cflags, "-c",
+        os.path.join(ss_dir, "SuiteSparse_config.c"), "-o", ss_obj)
+    run("ar", "rcs", os.path.join(LIB_DIR, "libsuitesparseconfig.a"), ss_obj)
+
+    # AMD/Source/*.c → libamd.a
+    amd_objs = []
+    for c_file in sorted(_glob.glob(os.path.join(amd_src, "*.c"))):
+        obj = c_file[:-2] + ".o"
+        run(cc, *cflags, "-c", c_file, "-o", obj)
+        amd_objs.append(obj)
+    run("ar", "rcs", os.path.join(LIB_DIR, "libamd.a"), *amd_objs)
+
+    # Install headers
+    for h in _glob.glob(os.path.join(amd_inc, "*.h")):
+        shutil.copy2(h, inc_out)
+    shutil.copy2(os.path.join(ss_dir, "SuiteSparse_config.h"), inc_out)
 
 
 # ── Build nauty (static) ──────────────────────────────────────────────────────
@@ -253,10 +261,13 @@ def build_coin_or():
 
         extra = []
         if name == "CoinUtils":
-            # OpenBLAS provides both BLAS and LAPACK in one static archive.
-            # libgfortran / libquadmath are dynamic deps that bundle_dynamic_deps
-            # will copy into the wheel.
-            extra += [f"--with-lapack-lflags=-L{LIB_DIR} -lopenblas"]
+            # OpenBLAS provides both BLAS and LAPACK in one archive.
+            # AMD provides fill-reducing ordering for sparse systems.
+            extra += [
+                f"--with-lapack-lflags=-L{LIB_DIR} -lopenblas",
+                f"--with-amd-cflags=-I{amd_inc}",
+                f"--with-amd-lflags=-L{LIB_DIR} -lamd -lsuitesparseconfig",
+            ]
         elif name == "Clp":
             # Do NOT pass --with-amd-cflags here: Clp wraps #include <amd.h>
             # inside extern "C" {} in ClpCholeskyUfl.cpp, and SuiteSparse v7's
