@@ -8,7 +8,6 @@ import shutil
 import subprocess
 import tarfile
 import urllib.request
-from tempfile import TemporaryDirectory
 
 from setuptools import setup
 from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
@@ -524,12 +523,20 @@ Built with:
 - zlib for reading compressed MPS/LP files
 """
 
-with TemporaryDirectory() as tmp_dir:
+# setuptools requires package_dir values to be relative paths (not absolute).
+# Use a staging dir inside THIS_DIR so we can pass a simple relative name.
+_PKG_STAGING = "_cbcbox_pkg"
+_pkg_dir = os.path.join(THIS_DIR, _PKG_STAGING)
+if os.path.exists(_pkg_dir):
+    shutil.rmtree(_pkg_dir)
+os.makedirs(_pkg_dir)
+
+try:
     dist_name = "cbc_dist"
-    shutil.copytree(DIST_DIR, os.path.join(tmp_dir, dist_name), dirs_exist_ok=True)
+    shutil.copytree(DIST_DIR, os.path.join(_pkg_dir, dist_name), dirs_exist_ok=True)
 
     for fname in ["__init__.py", "__main__.py"]:
-        shutil.copy2(os.path.join(THIS_DIR, "src", fname), os.path.join(tmp_dir, fname))
+        shutil.copy2(os.path.join(THIS_DIR, "src", fname), os.path.join(_pkg_dir, fname))
 
     setup(
         cmdclass=cmdclass,
@@ -537,8 +544,10 @@ with TemporaryDirectory() as tmp_dir:
         long_description_content_type="text/markdown",
         packages=["cbcbox"],
         zip_safe=False,
-        package_dir={"cbcbox": tmp_dir},
+        package_dir={"cbcbox": _PKG_STAGING},
         package_data={
             "cbcbox": [f"{dist_name}/**"],
         },
     )
+finally:
+    shutil.rmtree(_pkg_dir, ignore_errors=True)
