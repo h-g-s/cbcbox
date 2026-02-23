@@ -279,8 +279,11 @@ def build_coin_or():
             ]
         elif name == "Cbc":
             nauty_pthread = "" if platform.system() == "Windows" else " -lpthread"
+            # Cbc's CbcSymmetry.hpp uses #include "nauty/nauty.h", so the
+            # include flag must point to the parent of the nauty/ directory.
+            nauty_parent = os.path.join(DIST_DIR, "include")
             extra += [
-                f"--with-nauty-cflags=-I{nauty_inc}",
+                f"--with-nauty-cflags=-I{nauty_parent}",
                 f"--with-nauty-lflags=-L{LIB_DIR} -lnauty{nauty_pthread}",
                 "--without-lapack",
             ]
