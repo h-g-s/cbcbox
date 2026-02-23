@@ -73,7 +73,8 @@ jobs:
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
           # DLL bundling is done by setup.py; skip delocate/delvewheel.
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: ""
-          CIBW_TEST_COMMAND: "python -m cbcbox -quit"
+          CIBW_TEST_REQUIRES: "pytest"
+          CIBW_TEST_COMMAND: "pytest {package}/tests/ -v"
         with:
           package-dir: .
           output-dir: wheelhouse
