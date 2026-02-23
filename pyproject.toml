@@ -37,3 +37,4 @@ Homepage = "https://github.com/h-g-s/cbcbox"
 
 [tool.cibuildwheel]
 build-verbosity = 1
+enable = ["pypy"]
