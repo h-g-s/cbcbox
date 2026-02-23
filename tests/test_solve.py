@@ -17,7 +17,7 @@ CASES = [
 def _solve_and_get_obj(mps_file: str, timeout: int = 300) -> float:
     """Run CBC on *mps_file*, return the reported optimal objective value."""
     result = subprocess.run(
-        [cbcbox.cbc_bin_path(), mps_file, "solve", "quit"],
+        [cbcbox.cbc_bin_path(), mps_file, "-solve", "-quit"],
         capture_output=True,
         text=True,
         timeout=timeout,
