@@ -85,13 +85,19 @@ def _win_to_msys2(s: str) -> str:
 
     'C:\\foo\\bar'          →  '/c/foo/bar'
     '--prefix=C:/foo/bar'   →  '--prefix=/c/foo/bar'
+    '-LC:/foo/bar'          →  '-L/c/foo/bar'  (even when preceded by a flag letter)
+    'https://example.com'   →  unchanged
     Strings without drive letters pass through unchanged.
     """
-    return re.sub(
-        r'(?<![A-Za-z])([A-Za-z]):[/\\]',
-        lambda m: f"/{m.group(1).lower()}/",
-        str(s),
-    ).replace("\\", "/")
+    s = str(s)
+    # Protect URL schemes (e.g. "https://") so they aren't misidentified as
+    # Windows drive letters.  Use NUL bytes as a placeholder that can't appear
+    # in a normal path or shell argument.
+    s = re.sub(r'([A-Za-z]+)://', r'\1\x00\x00', s)
+    # Convert Windows drive letters to MSYS2 /x/ format.
+    s = re.sub(r'([A-Za-z]):[/\\]', lambda m: f"/{m.group(1).lower()}/", s)
+    # Restore URL schemes and normalise remaining back-slashes.
+    return s.replace('\x00\x00', '://').replace('\\', '/')
 
 
 # ── Generic helpers ───────────────────────────────────────────────────────────
@@ -132,19 +138,13 @@ def build_openblas():
         "https://github.com/xianyi/OpenBLAS.git",
         OPENBLAS_TAG,
     )
-    # Use the explicit "libs" and "shared" targets so OpenBLAS's own test suite
-    # is never invoked (the default "all" target runs tests, which can fail on
-    # ARM runners).  Building both static and shared ensures that downstream
-    # configure scripts (CoinUtils, SuiteSparse) can link against the shared
-    # library during their feature-detection tests — static-only requires the
-    # Fortran runtime to be explicitly passed, which is fragile.
-    if platform.system() == "Windows":
-        # Windows: static only; shared DLL support requires extra mingw work.
-        run("make", f"-j{NPROC}", "libs", "BINARY=64", "NO_SHARED=1", cwd=src)
-        run("make", "BINARY=64", "NO_SHARED=1", f"PREFIX={DIST_DIR}", "install", cwd=src)
-    else:
-        run("make", f"-j{NPROC}", "libs", "shared", cwd=src)
-        run("make", f"PREFIX={DIST_DIR}", "install", cwd=src)
+    # Build static + shared libs (libs target skips test suite).
+    # Building shared is required on all platforms so configure scripts
+    # (CoinUtils LAPACK test) can link against the shared library — static
+    # requires explicit Fortran runtime flags which is fragile.
+    make_extra = ["BINARY=64"] if platform.system() == "Windows" else []
+    run("make", f"-j{NPROC}", "libs", "shared", *make_extra, cwd=src)
+    run("make", *make_extra, f"PREFIX={DIST_DIR}", "install", cwd=src)
 
 
 # ── Build SuiteSparse AMD (static only, direct compilation) ──────────────────
@@ -361,9 +361,10 @@ def _dynamic_deps_windows(path: str) -> dict:
     """Return {dll_name: source_path} for non-system MinGW DLLs needed by *path*.
 
     Uses objdump (from MinGW64) to list DLL imports, then resolves each name
-    against C:\\msys64\\mingw64\\bin\\.
+    against C:\\msys64\\mingw64\\bin\\ and DIST_DIR\\bin\\ (for DLLs installed
+    by our own build, such as libopenblas.dll).
     """
-    mingw_bin = r"C:\msys64\mingw64\bin"
+    search_dirs = [r"C:\msys64\mingw64\bin", os.path.join(DIST_DIR, "bin")]
     r = subprocess.run(
         [_MSYS2_BASH, "-lc",
          "export PATH=/mingw64/bin:/usr/bin:$PATH && "
@@ -376,9 +377,11 @@ def _dynamic_deps_windows(path: str) -> dict:
         if m:
             name = m.group(1)
             if not _WIN_SYS_DLL.match(name):
-                candidate = os.path.join(mingw_bin, name)
-                if os.path.exists(candidate):
-                    deps[name] = candidate
+                for search_dir in search_dirs:
+                    candidate = os.path.join(search_dir, name)
+                    if os.path.exists(candidate):
+                        deps[name] = candidate
+                        break
     return deps
 
 
