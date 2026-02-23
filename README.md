@@ -84,8 +84,10 @@ in the following order:
 | **AMD** (SuiteSparse v7.12.2) | v7.12.2 | Sparse matrix fill-reducing ordering |
 | **OpenBLAS** | v0.3.31 | Optimised BLAS/LAPACK for LP basis factorisation |
 
-All COIN-OR components are linked **statically** into the final binaries.
-OpenBLAS is shipped as a shared library and bundled inside the wheel.
+All COIN-OR components are linked into both **static** (`.a`) and **shared**
+(`.so` / `.dylib` / `.dll`) libraries. The shared libraries are patched with
+self-relative RPATHs and bundled inside the wheel, making them directly usable
+via `cffi` or `ctypes` without any system installation.
 
 ## Wheel contents
 
@@ -98,20 +100,20 @@ cbc_dist/
 │   ├── cbc           # CBC MIP solver binary  (cbc.exe on Windows)
 │   └── clp           # Clp LP solver binary   (clp.exe on Windows)
 ├── lib/
-│   ├── libCbc.a                 # CBC solver (static)
-│   ├── libCbcSolver.a           # CBC solver front-end (static)
-│   ├── libClp.a                 # Clp LP solver (static)
-│   ├── libCgl.a                 # Cut generation (static)
-│   ├── libOsi.a                 # Solver interface (static)
-│   ├── libOsiClp.a              # Clp OSI binding (static)
-│   ├── libOsiCbc.a              # CBC OSI binding (static)
-│   ├── libCoinUtils.a           # COIN-OR utilities (static)
-│   ├── libamd.a                 # AMD sparse ordering (static)
-│   ├── libsuitesparseconfig.a   # SuiteSparse config (static)
-│   ├── libnauty.a               # Nauty symmetry detection (static)
-│   ├── libopenblas.a            # OpenBLAS BLAS/LAPACK (static)
-│   ├── pkgconfig/               # .pc files for all libraries
-│   └── <bundled shared libs>    # Platform-specific — see below
+│   ├── libCbc.a / libCbc.so            # CBC solver
+│   ├── libCbcSolver.a / libCbcSolver.so
+│   ├── libClp.a / libClp.so            # Clp LP solver
+│   ├── libCgl.a / libCgl.so            # Cut generation
+│   ├── libOsi.a / libOsi.so            # Solver interface
+│   ├── libOsiClp.a / libOsiClp.so      # Clp OSI binding
+│   ├── libOsiCbc.a / libOsiCbc.so      # CBC OSI binding (where available)
+│   ├── libCoinUtils.a / libCoinUtils.so
+│   ├── libamd.a                        # AMD sparse ordering (static only)
+│   ├── libsuitesparseconfig.a          # SuiteSparse config (static only)
+│   ├── libnauty.a                      # Nauty (static only)
+│   ├── libopenblas.a / libopenblas.so  # OpenBLAS BLAS/LAPACK
+│   ├── pkgconfig/                      # .pc files for all libraries
+│   └── <bundled runtime shared libs>   # Platform-specific — see below
 └── include/
     ├── coin/      # COIN-OR headers (CoinUtils, Osi, Clp, Cgl, Cbc)
     ├── nauty/     # Nauty headers

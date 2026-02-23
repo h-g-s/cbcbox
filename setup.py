@@ -247,7 +247,7 @@ def build_coin_or():
         f"--prefix={DIST_DIR}",
         f"--libdir={LIB_DIR}",
         "--enable-static",
-        "--disable-shared",
+        "--enable-shared",      # produce .so/.dylib/.dll for cffi use
         "--disable-readline",   # libreadline not manylinux-allowed
         "--disable-bzlib",      # libbz2 not manylinux-allowed
         "--without-cholmod",    # use AMD instead
@@ -482,13 +482,28 @@ if not os.path.exists(os.path.join(DIST_DIR, "bin", _cbc_exe)):
     build_nauty()
     build_coin_or()
 
-# Patch rpaths / bundle DLLs for every built binary.
+# Patch rpaths / bundle DLLs for every built binary and shared library.
+_bundle_dir = os.path.join(DIST_DIR, "bin") if platform.system() == "Windows" else LIB_DIR
+
+# Binaries first.
 for _bin_name in [_cbc_exe, "clp.exe" if platform.system() == "Windows" else "clp"]:
     _bin_path = os.path.join(DIST_DIR, "bin", _bin_name)
     if os.path.exists(_bin_path):
-        # On Windows bundle into bin/ so DLLs sit next to the executable.
-        _bundle_dir = os.path.join(DIST_DIR, "bin") if platform.system() == "Windows" else LIB_DIR
         bundle_dynamic_deps(_bin_path, _bundle_dir)
+
+# Shared libraries — patch each .so/.dylib/.dll so they are self-contained
+# and usable directly via cffi/ctypes.
+if platform.system() == "Windows":
+    _shared_pattern = os.path.join(DIST_DIR, "bin", "*.dll")
+elif platform.system() == "Darwin":
+    _shared_pattern = os.path.join(LIB_DIR, "*.dylib")
+else:
+    _shared_pattern = os.path.join(LIB_DIR, "*.so*")
+
+for _lib_path in _glob.glob(_shared_pattern):
+    # Skip symlinks (they point to the real file already processed).
+    if not os.path.islink(_lib_path):
+        bundle_dynamic_deps(_lib_path, _bundle_dir)
 
 
 # ── Package ───────────────────────────────────────────────────────────────────
