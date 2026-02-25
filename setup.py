@@ -255,9 +255,12 @@ def build_coin_or():
         "--without-asl",        # AMPL solver library not needed
     ]
     if platform.system() == "Windows":
-        # Explicitly set the MinGW64 host triplet so libtool names DLLs as
+        # Declare both build and host as MinGW64 so that autoconf sets
+        # cross_compiling=no (build==host) and uses the plain gcc/g++ from
+        # /mingw64/bin rather than looking for x86_64-w64-mingw32-prefixed
+        # cross-compiler tools.  With host_os=mingw32, libtool names DLLs as
         # lib*.dll (MinGW convention) rather than cyg*.dll (Cygwin convention).
-        common += ["--host=x86_64-w64-mingw32"]
+        common += ["--build=x86_64-w64-mingw32", "--host=x86_64-w64-mingw32"]
 
     for name, url in COIN_REPOS:
         src = clone_if_missing(name, url)
