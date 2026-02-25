@@ -16,11 +16,12 @@ CASES = [
 ]
 
 # CBC time limit for tests (seconds); prevents long runs on slow CI machines.
-CBC_TIME_LIMIT = 240
+# 480s needed: sprint_hidden06_j takes ~240s with 1 thread on Windows CI.
+CBC_TIME_LIMIT = 480
 
 
 def _solve_and_get_obj(mps_file: str, time_limit: int = CBC_TIME_LIMIT,
-                       threads: int = 1, timeout: int = 300):
+                       threads: int = 1, timeout: int = 540):
     """Run CBC on *mps_file*, return (objective, elapsed_seconds).
 
     Parses the final "Optimal - objective value X" line specifically to avoid
