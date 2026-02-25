@@ -254,6 +254,10 @@ def build_coin_or():
         "--without-glpk",       # not needed
         "--without-asl",        # AMPL solver library not needed
     ]
+    if platform.system() == "Windows":
+        # Explicitly set the MinGW64 host triplet so libtool names DLLs as
+        # lib*.dll (MinGW convention) rather than cyg*.dll (Cygwin convention).
+        common += ["--host=x86_64-w64-mingw32"]
 
     for name, url in COIN_REPOS:
         src = clone_if_missing(name, url)
@@ -298,7 +302,13 @@ def build_coin_or():
         # clang (macOS) requires C++17 mode to accept aggregate assignment from
         # braced initializer lists (e.g. CoinDynamicConflictGraph.cpp).
         # -std=c++17 is harmless on GCC as well.
-        run(configure, *common, *extra, "CXXFLAGS=-std=c++17", cwd=bld, env=env)
+        # On Windows, -no-undefined tells libtool to produce DLLs even when it
+        # cannot verify that all symbols resolve at configure time (required for
+        # all COIN-OR libs, especially Cbc, to build as shared libraries).
+        extra_vars = ["CXXFLAGS=-std=c++17"]
+        if platform.system() == "Windows":
+            extra_vars += ["LDFLAGS=-no-undefined"]
+        run(configure, *common, *extra, *extra_vars, cwd=bld, env=env)
         run("make", "-j", NPROC, cwd=bld)
         run("make", "install", cwd=bld)
 
@@ -475,7 +485,25 @@ def bundle_dynamic_deps(binary: str, lib_dir: str, _visited: set = None):
             bundle_dynamic_deps(dst, lib_dir, _visited)
 
 
-# ── Main build ────────────────────────────────────────────────────────────────
+# ── Windows: mirror DLLs into lib/ ───────────────────────────────────────────
+
+def copy_win_dlls_to_lib():
+    """Copy every DLL from bin/ into lib/ as well.
+
+    On Windows, libtool installs DLLs to bindir (bin/) and import libs
+    (.dll.a) to libdir (lib/).  python-mip and other ctypes/cffi consumers
+    locate libraries via cbcbox.cbc_lib_dir() which points to lib/, so all
+    DLLs must also be present there — both the COIN-OR ones (libCbc.dll, …)
+    and the bundled MinGW runtime DLLs they depend on.
+    """
+    bin_dir = os.path.join(DIST_DIR, "bin")
+    os.makedirs(LIB_DIR, exist_ok=True)
+    for dll in _glob.glob(os.path.join(bin_dir, "*.dll")):
+        dst = os.path.join(LIB_DIR, os.path.basename(dll))
+        if not os.path.exists(dst):
+            shutil.copy2(dll, dst)
+
+
 
 _cbc_exe = "cbc.exe" if platform.system() == "Windows" else "cbc"
 
@@ -507,6 +535,10 @@ for _lib_path in _glob.glob(_shared_pattern):
     # Skip symlinks (they point to the real file already processed).
     if not os.path.islink(_lib_path):
         bundle_dynamic_deps(_lib_path, _bundle_dir)
+
+# Mirror all DLLs from bin/ into lib/ so ctypes consumers using cbc_lib_dir() find them.
+if platform.system() == "Windows":
+    copy_win_dlls_to_lib()
 
 
 # ── Package ───────────────────────────────────────────────────────────────────
