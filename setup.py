@@ -305,13 +305,14 @@ def build_coin_or():
         # clang (macOS) requires C++17 mode to accept aggregate assignment from
         # braced initializer lists (e.g. CoinDynamicConflictGraph.cpp).
         # -std=c++17 is harmless on GCC as well.
-        # On Windows, -no-undefined tells libtool to produce DLLs even when it
-        # cannot verify that all symbols resolve at configure time (required for
-        # all COIN-OR libs, especially Cbc, to build as shared libraries).
-        extra_vars = ["CXXFLAGS=-std=c++17"]
-        if platform.system() == "Windows":
-            extra_vars += ["LDFLAGS=-no-undefined"]
-        run(configure, *common, *extra, *extra_vars, cwd=bld, env=env)
+        # Note: -no-undefined is NOT passed here via LDFLAGS because it is a
+        # libtool-specific flag, not a raw linker flag.  Passing it via LDFLAGS
+        # causes configure's own link tests ("C compiler cannot create
+        # executables") to fail with exit code 77 on MinGW.  COIN-OR's
+        # AC_COIN_PROG_LIBTOOL macro already appends -no-undefined to
+        # LT_LDFLAGS internally (aclocal.m4), which is the correct path —
+        # it reaches libtool only when building shared libraries.
+        run(configure, *common, *extra, "CXXFLAGS=-std=c++17", cwd=bld, env=env)
         run("make", "-j", NPROC, cwd=bld)
         run("make", "install", cwd=bld)
 
