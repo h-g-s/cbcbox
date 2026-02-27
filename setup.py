@@ -156,7 +156,13 @@ def build_openblas(dest_dir, *, dynamic_arch=False, target=None):
     elif dynamic_arch and platform.system() != "Windows":
         # DYNAMIC_ARCH=1 compiles multiple kernels and dispatches at runtime;
         # not used on Windows where the wheel is always x86_64 native.
+        # NO_AVX512=1: AVX-512 kernels use very large stack frames (ZMM spills)
+        # that overflow the 512 KB default pthread stack on macOS, causing
+        # SIGSEGV inside dgetrf_single on CI runners with Ice Lake Xeons.
+        # Our wheel targets Haswell (AVX2) as the high-water mark, so AVX-512
+        # is never needed.
         make_vars.append("DYNAMIC_ARCH=1")
+        make_vars.append("NO_AVX512=1")
 
     # Build static + shared libs (libs target skips test suite).
     # Building shared is required on all platforms so configure scripts
