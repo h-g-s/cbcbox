@@ -20,6 +20,45 @@ wheel — no system libraries or separate installation steps are needed.
   Activate it with `-barrier -cholesky UniversityOfFlorida` (see [barrier usage](#barrier-interior-point-solver) below).
 
 - **Optimised BLAS** — linked against OpenBLAS for fast dense linear algebra.
+  The generic build uses OpenBLAS `DYNAMIC_ARCH=1` (runtime CPU dispatch) for
+  maximum portability; an additional **AVX2-optimised build** is included on
+  x86_64 Linux and macOS (see [Build variants](#build-variants) below).
+
+## Build variants
+
+On **x86_64 Linux and macOS**, the wheel ships two complete sets of binaries:
+
+| Variant | OpenBLAS kernel | Clp SIMD | Minimum CPU |
+|---|---|---|---|
+| `generic` | `DYNAMIC_ARCH` (runtime dispatch) | standard | any x86_64 |
+| `avx2` | `HASWELL` (256-bit AVX2/FMA) | `DCOIN_AVX2=4` (4-double AVX2 layout) | Haswell (2013+) |
+
+At import time `cbcbox` automatically selects `avx2` when it is available **and**
+the running CPU supports AVX2; otherwise it falls back to `generic`.
+
+You can override this selection with the `CBCBOX_BUILD` environment variable:
+
+```bash
+# Force generic (portable) build
+CBCBOX_BUILD=generic python -m cbcbox mymodel.mps -solve -quit
+
+# Force AVX2-optimised build (raises an error if not available)
+CBCBOX_BUILD=avx2 python -m cbcbox mymodel.mps -solve -quit
+```
+
+When `CBCBOX_BUILD` is set, a short summary of the selected build is printed to
+stdout on every call — useful for tagging experiment results:
+
+```
+[cbcbox] CBCBOX_BUILD=avx2
+[cbcbox]   binary  : .../cbcbox/cbc_dist_avx2/bin/cbc
+[cbcbox]   lib dir : .../cbcbox/cbc_dist_avx2/lib
+[cbcbox]   libs    : libCbc.so.3, libClp.so.3, libopenblas.so.0
+```
+
+> **Non-x86_64 platforms** (Linux aarch64, macOS arm64, Windows AMD64) ship
+> only the `generic` build. `CBCBOX_BUILD=avx2` will raise a `RuntimeError` on
+> those platforms.
 
 ## Supported platforms
 
@@ -152,6 +191,12 @@ in the following order:
 | **AMD** (SuiteSparse v7.12.2) | v7.12.2 | Sparse matrix fill-reducing ordering |
 | **OpenBLAS** | v0.3.31 | Optimised BLAS/LAPACK for LP basis factorisation |
 
+On x86_64 Linux and macOS the entire stack is compiled **twice**: once for the
+`generic` variant (OpenBLAS `DYNAMIC_ARCH=1`) and once for the `avx2` variant
+(`TARGET=HASWELL`, `CXXFLAGS=-O3 -mavx2 -mfma -DCOIN_AVX2=4`).  AMD and Nauty
+are built only once (they are pure combinatorial code with no BLAS dependency)
+and reused by both COIN-OR variants.
+
 All COIN-OR components are linked into both **static** (`.a`) and **shared**
 (`.so` / `.dylib`) libraries on Linux and macOS. On Windows only **shared**
 libraries (`.dll`) are produced — MinGW's autotools does not support building
@@ -161,11 +206,13 @@ via `cffi` or `ctypes` without any system installation.
 
 ## Wheel contents
 
-The wheel installs under `cbcbox/cbc_dist/` inside the site-packages directory.
-The layout is:
+The wheel installs under `cbcbox/` inside the site-packages directory.
+On x86_64 Linux and macOS it contains **two** dist trees; other platforms
+contain only `cbc_dist/`:
 
 ```
-cbc_dist/
+cbc_dist/           ← generic build (all platforms)
+cbc_dist_avx2/      ← AVX2-optimised build (x86_64 Linux/macOS only)
 ├── bin/
 │   ├── cbc           # CBC MIP solver binary  (cbc.exe on Windows)
 │   └── clp           # Clp LP solver binary   (clp.exe on Windows)
@@ -178,9 +225,9 @@ cbc_dist/
 │   ├── libOsiClp.a / libOsiClp.so      # Clp OSI binding
 │   ├── libOsiCbc.a / libOsiCbc.so      # CBC OSI binding (where available)
 │   ├── libCoinUtils.a / libCoinUtils.so
-│   ├── libamd.a                        # AMD sparse ordering (static only)
-│   ├── libsuitesparseconfig.a          # SuiteSparse config (static only)
-│   ├── libnauty.a                      # Nauty (static only)
+│   ├── libamd.a                        # AMD sparse ordering (static only, generic only)
+│   ├── libsuitesparseconfig.a          # SuiteSparse config (static only, generic only)
+│   ├── libnauty.a                      # Nauty (static only, generic only)
 │   ├── libopenblas.a / libopenblas.so  # OpenBLAS BLAS/LAPACK
 │   ├── pkgconfig/                      # .pc files for all libraries
 │   └── <bundled runtime shared libs>   # Platform-specific — see below
@@ -243,17 +290,32 @@ installed wheel to verify correctness.
 
 ### Integration tests
 
-The test suite (`pytest`) solves two MIP instances and checks the optimal
-objective values, both in single-threaded and parallel (2-thread) modes:
+The test suite (`pytest`) solves three MIP instances and checks the optimal
+objective values, in both single-threaded and parallel (3-thread) modes.
+On x86_64 Linux and macOS **each test is run twice** — once against the
+`generic` binary and once against the `avx2` binary — and a side-by-side
+performance comparison is recorded:
 
 | Test | Instance | Expected optimal |
 |---|---|---|
-| `test_solve[pp08a]` | `pp08a.mps.gz` (240×182) | 7350 |
-| `test_solve[sprint_hidden06_j]` | `sprint_hidden06_j.mps.gz` (3694×10210) | 130 |
-| `test_solve_parallel[pp08a]` | same, `-threads=3` | 7350 |
-| `test_solve_parallel[sprint_hidden06_j]` | same, `-threads=3` | 130 |
+| `test_solve[pp08a-generic]` | `pp08a.mps.gz` (240×182) | 7350 |
+| `test_solve[pp08a-avx2]` | same, AVX2 build | 7350 |
+| `test_solve[sprint_hidden06_j-generic]` | `sprint_hidden06_j.mps.gz` (3694×10210) | 130 |
+| `test_solve[air04-generic]` | `air04.mps.gz` | 56137 |
+| `test_solve_parallel[pp08a-generic]` | same, `-threads=3` | 7350 |
+| … | … | … |
 
-The parallel tests verify that `--enable-cbc-parallel` is functional.
+The `perf_report.md` artifact produced by each CI run includes a table like:
+
+```
+| Instance            | generic (s) | avx2 (s) | avx2 speedup |
+|---|---|---|---|
+| pp08a.mps.gz        | 2.10        | 1.65      | 1.27×        |
+| air04.mps.gz        | 45.3        | 36.1      | 1.25×        |
+```
+
+The combined cross-platform report (uploaded as `perf-report-combined`) adds a
+**Build** column so generic and AVX2 rows appear side-by-side for each platform.
 
 ### Publishing to PyPI
 
