@@ -187,6 +187,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install gfortran if needed
         run: which gfortran || brew install gcc
+      - name: Install Python build deps
+        run: pip install setuptools wheel
       - name: Build generic binary
         env:
           CBCBOX_BUILD_VARIANT: generic
@@ -205,6 +207,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install gfortran if needed
         run: which gfortran || brew install gcc
+      - name: Install Python build deps
+        run: pip install setuptools wheel
       - name: Build AVX2 binary
         env:
           CBCBOX_BUILD_VARIANT: avx2
@@ -275,6 +279,8 @@ jobs:
             mingw-w64-x86_64-gcc-fortran \
             make \
             autoconf automake libtool pkg-config
+      - name: Install Python build deps
+        run: pip install setuptools wheel
       - name: Build generic binary
         env:
           CBCBOX_BUILD_VARIANT: generic
@@ -301,6 +307,8 @@ jobs:
             mingw-w64-x86_64-gcc-fortran \
             make \
             autoconf automake libtool pkg-config
+      - name: Install Python build deps
+        run: pip install setuptools wheel
       - name: Build AVX2 binary
         env:
           CBCBOX_BUILD_VARIANT: avx2
