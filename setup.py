@@ -560,7 +560,13 @@ if not os.path.exists(os.path.join(DIST_DIR, "bin", _cbc_exe)):
 # AVX2-optimised build: all x86_64 platforms (Linux, macOS, Windows).
 _build_avx2 = _is_x86_64()
 if _build_avx2 and not os.path.exists(os.path.join(DIST_DIR_AVX2, "bin", _cbc_exe)):
-    build_openblas(DIST_DIR_AVX2, target="HASWELL")
+    # Use DYNAMIC_ARCH=1 (same as generic build) rather than TARGET=HASWELL.
+    # TARGET=HASWELL mandates aligned AVX2 loads in dgetrf_single; CoinDense-
+    # Factorization passes unaligned data which causes SIGSEGV on macOS Intel.
+    # DYNAMIC_ARCH dispatches to the best available kernel at runtime (Haswell
+    # on Haswell hardware) without the strict alignment assumption.
+    # The AVX2 performance advantage comes from -march=haswell on the COIN-OR stack.
+    build_openblas(DIST_DIR_AVX2, dynamic_arch=True)
     build_coin_or(DIST_DIR_AVX2, extra_cxxflags="-O3 -march=haswell -DCOIN_AVX2=4")
 
 
