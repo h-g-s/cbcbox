@@ -354,7 +354,18 @@ def build_coin_or(dest_dir=None, extra_cxxflags=""):
         # AC_COIN_PROG_LIBTOOL macro already appends -no-undefined to
         # LT_LDFLAGS internally (aclocal.m4), which is the correct path —
         # it reaches libtool only when building shared libraries.
-        cxxflags = f"-std=c++17{' ' + extra_cxxflags if extra_cxxflags else ''}"
+        # Clp and Cbc both check CLP_USE_OPENBLAS to conditionally compile
+        # the OpenBLAS thread-count management (openblas_set_num_threads).
+        # This enables CbcModel to cap BLAS threads to 1 during parallel B&B,
+        # preventing stack overflow crashes on macOS whose secondary threads
+        # have a 512 KB default stack (vs 8 MB on Linux).
+        openblas_flag = "-DCLP_USE_OPENBLAS=1" if name in ("Clp", "Cbc") else ""
+        cxxflags_parts = ["-std=c++17"]
+        if extra_cxxflags:
+            cxxflags_parts.append(extra_cxxflags)
+        if openblas_flag:
+            cxxflags_parts.append(openblas_flag)
+        cxxflags = " ".join(cxxflags_parts)
         run(configure, *common, *extra, f"CXXFLAGS={cxxflags}", cwd=bld, env=env)
         run("make", "-j", NPROC, cwd=bld)
         run("make", "install", cwd=bld)
