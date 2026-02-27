@@ -247,7 +247,7 @@ def build_coin_or(dest_dir=None, extra_cxxflags=""):
     """Build the full COIN-OR stack and install into *dest_dir*.
 
     *extra_cxxflags* is appended to CXXFLAGS and can be used to enable
-    architecture-specific optimisations (e.g. "-O3 -mavx2 -mfma -DCOIN_AVX2=4"
+    architecture-specific optimisations (e.g. "-O3 -march=haswell -DCOIN_AVX2=4"
     for the Haswell-optimised build).
     """
     if dest_dir is None:
@@ -563,7 +563,7 @@ if not os.path.exists(os.path.join(DIST_DIR, "bin", _cbc_exe)):
 _build_avx2 = _is_x86_64() and platform.system() != "Windows"
 if _build_avx2 and not os.path.exists(os.path.join(DIST_DIR_AVX2, "bin", _cbc_exe)):
     build_openblas(DIST_DIR_AVX2, target="HASWELL")
-    build_coin_or(DIST_DIR_AVX2, extra_cxxflags="-O3 -mavx2 -mfma -DCOIN_AVX2=4")
+    build_coin_or(DIST_DIR_AVX2, extra_cxxflags="-O3 -march=haswell -DCOIN_AVX2=4")
 
 
 def _bundle_dist(dist_dir):
