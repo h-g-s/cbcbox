@@ -36,8 +36,14 @@ def _solve_and_get_obj(mps_file: str, cbc_binary: str = None,
     if threads > 1:
         cmd += [f"-threads={threads}"]
     cmd += ["-solve", "-quit"]
+    # Prevent OpenBLAS from spawning its own thread pool inside each CBC worker
+    # thread.  When CBC runs with -threads N, each worker calls into OpenBLAS;
+    # without this, total threads = N × OPENBLAS_NUM_THREADS which exhausts
+    # memory on CI runners (observed SIGSEGV in dgetrf_single on macOS Intel).
+    env = os.environ.copy()
+    env.setdefault("OPENBLAS_NUM_THREADS", "1")
     result = subprocess.run(cmd, capture_output=True, text=True,
-                            timeout=timeout or (time_limit + 120))
+                            timeout=timeout or (time_limit + 120), env=env)
     output = result.stdout + result.stderr
     # Look for the definitive result lines (last wins in case of duplicates):
     #   "Optimal - objective value 7350.00000000"
