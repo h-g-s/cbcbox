@@ -135,6 +135,69 @@ def clone_if_missing(name, url, branch="master"):
     return dest
 
 
+def _patch_cbc_thread_stack(cbc_src):
+    """Patch CbcThread.cpp to create B&B worker threads with 8 MB stack.
+
+    macOS creates pthreads with only 512 KB of stack by default (vs 8 MB on
+    Linux).  OpenBLAS's dgetrf_single allocates a large panel buffer on the
+    stack; when called from a B&B worker thread it overflows the 512 KB limit,
+    producing SIGSEGV.  We fix this by explicitly passing a pthread_attr_t
+    that requests 8 MB to every pthread_create call in CbcSpecificThread.
+    """
+    path = os.path.join(cbc_src, "src", "CbcThread.cpp")
+    if not os.path.exists(path):
+        return  # nothing to patch (Windows build or wrong layout)
+
+    with open(path) as f:
+        src = f.read()
+
+    # Already patched (idempotent).
+    if "_cbc_stack_attr" in src:
+        return
+
+    # Replace the B&B worker thread creation (uses named thread variable).
+    old1 = "  pthread_create(&(threadId_.thr), NULL, routine, thread);"
+    new1 = (
+        "  {\n"
+        "    /* 8 MB stack: macOS default is 512 KB, too small for dgetrf_single. */\n"
+        "    pthread_attr_t _cbc_stack_attr;\n"
+        "    pthread_attr_init(&_cbc_stack_attr);\n"
+        "    pthread_attr_setstacksize(&_cbc_stack_attr, 8 * 1024 * 1024);\n"
+        "    pthread_create(&(threadId_.thr), &_cbc_stack_attr, routine, thread);\n"
+        "    pthread_attr_destroy(&_cbc_stack_attr);\n"
+        "  }"
+    )
+
+    # Replace the heuristic worker thread creation (uses array variable).
+    old2 = (
+        "    pthread_create(&(threadId[i].thr), NULL, doHeurThread,\n"
+        "      args + i * sizeOfData);"
+    )
+    new2 = (
+        "    {\n"
+        "      /* 8 MB stack: macOS default is 512 KB, too small for dgetrf_single. */\n"
+        "      pthread_attr_t _cbc_stack_attr;\n"
+        "      pthread_attr_init(&_cbc_stack_attr);\n"
+        "      pthread_attr_setstacksize(&_cbc_stack_attr, 8 * 1024 * 1024);\n"
+        "      pthread_create(&(threadId[i].thr), &_cbc_stack_attr, doHeurThread,\n"
+        "        args + i * sizeOfData);\n"
+        "      pthread_attr_destroy(&_cbc_stack_attr);\n"
+        "    }"
+    )
+
+    patched = src
+    if old1 in patched:
+        patched = patched.replace(old1, new1, 1)
+        print(">>> patched CbcThread.cpp: startThread stack size", flush=True)
+    if old2 in patched:
+        patched = patched.replace(old2, new2, 1)
+        print(">>> patched CbcThread.cpp: heuristic thread stack size", flush=True)
+
+    if patched != src:
+        with open(path, "w") as f:
+            f.write(patched)
+
+
 # ── Build OpenBLAS (static, with Fortran/LAPACK) ─────────────────────────────
 
 def build_openblas(dest_dir, *, dynamic_arch=False, target=None):
@@ -309,6 +372,8 @@ def build_coin_or(dest_dir=None, extra_cxxflags=""):
 
     for name, url in COIN_REPOS:
         src = clone_if_missing(name, url)
+        if name == "Cbc" and platform.system() != "Windows":
+            _patch_cbc_thread_stack(src)
         bld = os.path.join(src, bld_suffix)
         os.makedirs(bld, exist_ok=True)
 
