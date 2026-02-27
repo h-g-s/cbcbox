@@ -46,7 +46,7 @@ def pytest_sessionfinish(session, exitstatus):
     sys_name = platform.system()
     machine  = platform.machine()
     py_ver   = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
-    base_dir = os.path.dirname(__file__)
+    base_dir = os.environ.get("PERF_REPORT_DIR") or os.path.dirname(__file__)
 
     # --- JSON (machine-readable, consumed by the combine_reports CI job) ------
     payload = {
