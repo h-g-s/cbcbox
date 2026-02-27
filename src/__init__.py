@@ -59,7 +59,7 @@ def cbc_dist_dir() -> str:
         if not os.path.isdir(avx2_dir):
             raise RuntimeError(
                 "CBCBOX_BUILD=avx2 requested but the AVX2 build is not "
-                "present in this installation (x86_64 Linux/macOS only)."
+                "present in this installation (x86_64 Linux/macOS/Windows only)."
             )
         chosen = avx2_dir
     elif override == "generic":

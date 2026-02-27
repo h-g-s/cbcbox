@@ -13,7 +13,7 @@ def _get_build_variants():
     """Return [(variant_name, binary_path), ...] for every available CBC build.
 
     Always includes 'generic'; adds 'avx2' when cbc_dist_avx2/ is present
-    (x86_64 Linux/macOS wheels only).
+    (x86_64 Linux/macOS/Windows wheels only).
     """
     pkg_dir = os.path.abspath(os.path.dirname(cbcbox.__file__))
     cbc_exe = "cbc.exe" if os.name == "nt" else "cbc"

@@ -557,10 +557,8 @@ if not os.path.exists(os.path.join(DIST_DIR, "bin", _cbc_exe)):
     build_nauty()
     build_coin_or(DIST_DIR)
 
-# AVX2-optimised build: x86_64 Linux and macOS only.
-# Skipped on Windows because: (a) the CI build already takes ~67 min, and
-# (b) all supported Windows CI runners are modern x86_64 machines anyway.
-_build_avx2 = _is_x86_64() and platform.system() != "Windows"
+# AVX2-optimised build: all x86_64 platforms (Linux, macOS, Windows).
+_build_avx2 = _is_x86_64()
 if _build_avx2 and not os.path.exists(os.path.join(DIST_DIR_AVX2, "bin", _cbc_exe)):
     build_openblas(DIST_DIR_AVX2, target="HASWELL")
     build_coin_or(DIST_DIR_AVX2, extra_cxxflags="-O3 -march=haswell -DCOIN_AVX2=4")
@@ -624,7 +622,7 @@ try:
 
     package_data_patterns = [f"{dist_name}/**"]
 
-    # Include the AVX2-optimised build when present (x86_64 Linux/macOS only).
+    # Include the AVX2-optimised build when present (x86_64 Linux/macOS/Windows).
     dist_name_avx2 = "cbc_dist_avx2"
     if os.path.isdir(DIST_DIR_AVX2):
         shutil.copytree(DIST_DIR_AVX2, os.path.join(_pkg_dir, dist_name_avx2),
