@@ -9,20 +9,22 @@ import cbcbox
 
 DATA_DIR = os.path.dirname(__file__)
 
+# (filename, expected_optimal, cbc_time_limit_seconds)
+# Time limits are generous to avoid false failures on slow CI runners.
+# subprocess timeout = cbc_time_limit + 120 s.
 CASES = [
-    ("pp08a.mps.gz", 7350.0),
-    ("sprint_hidden06_j.mps.gz", 130.0),
-    ("air04.mps.gz", 56137.0),
+    ("pp08a.mps.gz",              7350.0,           300),
+    ("sprint_hidden06_j.mps.gz",  130.0,            900),
+    ("air04.mps.gz",              56137.0,           600),
+    ("air05.mps.gz",              26374.0,           900),
+    ("nw04.mps.gz",               16862.0,           900),
+    ("trd445c.mps.gz",            -153419.078836,   1200),
 ]
-
-# CBC time limit for tests (seconds); prevents long runs on slow CI machines.
-# 480s needed: sprint_hidden06_j takes ~240s with 1 thread on Windows CI.
-CBC_TIME_LIMIT = 480
 
 
 def _solve_and_get_obj(mps_file: str, cbc_binary: str = None,
-                        time_limit: int = CBC_TIME_LIMIT,
-                        threads: int = 1, timeout: int = 540):
+                        time_limit: int = 600,
+                        threads: int = 1, timeout: int = None):
     """Run CBC on *mps_file*, return (objective, elapsed_seconds).
 
     Parses the final "Optimal - objective value X" line specifically to avoid
@@ -34,7 +36,8 @@ def _solve_and_get_obj(mps_file: str, cbc_binary: str = None,
     if threads > 1:
         cmd += [f"-threads={threads}"]
     cmd += ["-solve", "-quit"]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    result = subprocess.run(cmd, capture_output=True, text=True,
+                            timeout=timeout or (time_limit + 120))
     output = result.stdout + result.stderr
     # Look for the definitive result lines (last wins in case of duplicates):
     #   "Optimal - objective value 7350.00000000"
@@ -68,11 +71,12 @@ def test_cbc_binary_exists():
     assert os.path.isfile(path), f"cbc binary not found at {path}"
 
 
-@pytest.mark.parametrize("filename,expected", CASES)
-def test_solve(filename, expected, cbc_variant, request):
+@pytest.mark.parametrize("filename,expected,time_limit", CASES,
+                         ids=lambda x: x if isinstance(x, str) else None)
+def test_solve(filename, expected, time_limit, cbc_variant, request):
     variant_name, cbc_binary = cbc_variant
     mps_file = os.path.join(DATA_DIR, filename)
-    obj, elapsed = _solve_and_get_obj(mps_file, cbc_binary)
+    obj, elapsed = _solve_and_get_obj(mps_file, cbc_binary, time_limit=time_limit)
     request.config._perf_results.append(
         {"instance": filename, "threads": 1, "elapsed_s": elapsed,
          "objective": obj, "build_variant": variant_name}
@@ -80,12 +84,13 @@ def test_solve(filename, expected, cbc_variant, request):
     assert abs(obj - expected) < 1e-4, f"Expected {expected}, got {obj}"
 
 
-@pytest.mark.parametrize("filename,expected", CASES)
-def test_solve_parallel(filename, expected, cbc_variant, request):
+@pytest.mark.parametrize("filename,expected,time_limit", CASES,
+                         ids=lambda x: x if isinstance(x, str) else None)
+def test_solve_parallel(filename, expected, time_limit, cbc_variant, request):
     """Same instances solved with 3 threads to verify --enable-cbc-parallel."""
     variant_name, cbc_binary = cbc_variant
     mps_file = os.path.join(DATA_DIR, filename)
-    obj, elapsed = _solve_and_get_obj(mps_file, cbc_binary, threads=3)
+    obj, elapsed = _solve_and_get_obj(mps_file, cbc_binary, time_limit=time_limit, threads=3)
     request.config._perf_results.append(
         {"instance": filename, "threads": 3, "elapsed_s": elapsed,
          "objective": obj, "build_variant": variant_name}

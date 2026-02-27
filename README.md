@@ -22,11 +22,11 @@ wheel — no system libraries or separate installation steps are needed.
 - **Optimised BLAS** — linked against OpenBLAS for fast dense linear algebra.
   The generic build uses OpenBLAS `DYNAMIC_ARCH=1` (runtime CPU dispatch) for
   maximum portability; an additional **AVX2-optimised build** is included on
-  x86_64 Linux and macOS (see [Build variants](#build-variants) below).
+  x86_64 Linux, macOS, and Windows (see [Build variants](#build-variants) below).
 
 ## Build variants
 
-On **x86_64 Linux and macOS**, the wheel ships two complete sets of binaries:
+On **x86_64 Linux, macOS, and Windows**, the wheel ships two complete sets of binaries:
 
 | Variant | OpenBLAS kernel | Clp SIMD | Minimum CPU |
 |---|---|---|---|
@@ -56,9 +56,8 @@ stdout on every call — useful for tagging experiment results:
 [cbcbox]   libs    : libCbc.so.3, libClp.so.3, libopenblas.so.0
 ```
 
-> **Non-x86_64 platforms** (Linux aarch64, macOS arm64, Windows AMD64) ship
-> only the `generic` build. `CBCBOX_BUILD=avx2` will raise a `RuntimeError` on
-> those platforms.
+> **Non-x86_64 platforms** (Linux aarch64, macOS arm64) ship only the `generic`
+> build. `CBCBOX_BUILD=avx2` will raise a `RuntimeError` on those platforms.
 
 ## Supported platforms
 
@@ -191,7 +190,7 @@ in the following order:
 | **AMD** (SuiteSparse v7.12.2) | v7.12.2 | Sparse matrix fill-reducing ordering |
 | **OpenBLAS** | v0.3.31 | Optimised BLAS/LAPACK for LP basis factorisation |
 
-On x86_64 Linux and macOS the entire stack is compiled **twice**: once for the
+On x86_64 Linux, macOS, and Windows the entire stack is compiled **twice**: once for the
 `generic` variant (OpenBLAS `DYNAMIC_ARCH=1`) and once for the `avx2` variant
 (`TARGET=HASWELL`, `CXXFLAGS=-O3 -march=haswell -DCOIN_AVX2=4`).  AMD and Nauty
 are built only once (they are pure combinatorial code with no BLAS dependency)
@@ -207,12 +206,12 @@ via `cffi` or `ctypes` without any system installation.
 ## Wheel contents
 
 The wheel installs under `cbcbox/` inside the site-packages directory.
-On x86_64 Linux and macOS it contains **two** dist trees; other platforms
+On x86_64 Linux, macOS, and Windows it contains **two** dist trees; other platforms
 contain only `cbc_dist/`:
 
 ```
 cbc_dist/           ← generic build (all platforms)
-cbc_dist_avx2/      ← AVX2-optimised build (x86_64 Linux/macOS only)
+cbc_dist_avx2/      ← AVX2-optimised build (x86_64 Linux/macOS/Windows)
 ├── bin/
 │   ├── cbc           # CBC MIP solver binary  (cbc.exe on Windows)
 │   └── clp           # Clp LP solver binary   (clp.exe on Windows)
@@ -290,32 +289,22 @@ installed wheel to verify correctness.
 
 ### Integration tests
 
-The test suite (`pytest`) solves three MIP instances and checks the optimal
+The test suite (`pytest`) solves six MIP instances and checks the optimal
 objective values, in both single-threaded and parallel (3-thread) modes.
-On x86_64 Linux and macOS **each test is run twice** — once against the
-`generic` binary and once against the `avx2` binary — and a side-by-side
+On x86_64 Linux, macOS, and Windows **each test is run twice** — once against
+the `generic` binary and once against the `avx2` binary — and a side-by-side
 performance comparison is recorded:
 
-| Test | Instance | Expected optimal |
+| Instance | Expected optimal | Time limit |
 |---|---|---|
-| `test_solve[pp08a-generic]` | `pp08a.mps.gz` (240×182) | 7350 |
-| `test_solve[pp08a-avx2]` | same, AVX2 build | 7350 |
-| `test_solve[sprint_hidden06_j-generic]` | `sprint_hidden06_j.mps.gz` (3694×10210) | 130 |
-| `test_solve[air04-generic]` | `air04.mps.gz` | 56137 |
-| `test_solve_parallel[pp08a-generic]` | same, `-threads=3` | 7350 |
-| … | … | … |
+| `pp08a.mps.gz` | 7 350 | 300 s |
+| `sprint_hidden06_j.mps.gz` | 130 | 900 s |
+| `air04.mps.gz` | 56 137 | 600 s |
+| `air05.mps.gz` | 26 374 | 900 s |
+| `nw04.mps.gz` | 16 862 | 900 s |
+| `trd445c.mps.gz` | −153 419.078836 | 1200 s |
 
-The `perf_report.md` artifact produced by each CI run includes a table like:
-
-```
-| Instance            | generic (s) | avx2 (s) | avx2 speedup |
-|---|---|---|---|
-| pp08a.mps.gz        | 2.10        | 1.65      | 1.27×        |
-| air04.mps.gz        | 45.3        | 36.1      | 1.25×        |
-```
-
-The combined cross-platform report (uploaded as `perf-report-combined`) adds a
-**Build** column so generic and AVX2 rows appear side-by-side for each platform.
+Time limits are generous to avoid false failures on slow CI runners.
 
 ### Publishing to PyPI
 
@@ -323,6 +312,15 @@ The combined cross-platform report (uploaded as `perf-report-combined`) adds a
 > workflow manually and select `pypi` (or `testpypi`) in the **Publish** input.
 > Trusted Publisher (OIDC) authentication is used — no API tokens are stored as
 > secrets.
+
+## Performance results
+
+> *Auto-updated by CI after each successful
+> [workflow run](../../actions/workflows/wheel.yml).*
+
+<!-- PERF_RESULTS_START -->
+*No results yet — run the CI workflow to populate this section.*
+<!-- PERF_RESULTS_END -->
 
 ## License
 
