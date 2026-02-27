@@ -129,6 +129,14 @@ Use `-timem elapsed` when running parallel so that time limits and reported
 times reflect wall-clock seconds rather than CPU-time (which would be ~N× the
 wall time).
 
+> **Memory tip:** OpenBLAS spawns its own internal thread pool by default.
+> When CBC is already using `-threads N`, this multiplies memory usage
+> (N CBC threads × M OpenBLAS threads).  On memory-constrained machines you
+> can cap OpenBLAS to a single thread while keeping CBC parallelism:
+> ```bash
+> OPENBLAS_NUM_THREADS=1 python -m cbcbox mymodel.mps -threads=4 -solve -quit
+> ```
+
 #### Barrier (interior-point) solver
 
 Clp's barrier solver can be faster than simplex for large LP relaxations.
