@@ -36,9 +36,10 @@ cmdclass = {"bdist_wheel": genericpy_bdist_wheel}
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-THIS_DIR = os.path.abspath(os.path.dirname(__file__))
-DIST_DIR = os.path.join(THIS_DIR, "cbc_dist")
-LIB_DIR  = os.path.join(DIST_DIR, "lib")
+THIS_DIR      = os.path.abspath(os.path.dirname(__file__))
+DIST_DIR      = os.path.join(THIS_DIR, "cbc_dist")
+DIST_DIR_AVX2 = os.path.join(THIS_DIR, "cbc_dist_avx2")
+LIB_DIR       = os.path.join(DIST_DIR, "lib")
 NPROC    = str(max(1, multiprocessing.cpu_count()))
 
 SUITESPARSE_TAG = "v7.12.2"
@@ -117,6 +118,10 @@ def run(*cmd, cwd=None, env=None):
         subprocess.run(list(cmd), check=True, cwd=cwd, env=env)
 
 
+def _is_x86_64() -> bool:
+    return platform.machine().lower() in ("x86_64", "amd64")
+
+
 def clone_if_missing(name, url, branch="master"):
     dest = os.path.join(THIS_DIR, name)
     if not os.path.exists(dest):
@@ -132,19 +137,33 @@ def clone_if_missing(name, url, branch="master"):
 
 # ── Build OpenBLAS (static, with Fortran/LAPACK) ─────────────────────────────
 
-def build_openblas():
+def build_openblas(dest_dir, *, dynamic_arch=False, target=None):
     src = clone_if_missing(
         "OpenBLAS",
         "https://github.com/xianyi/OpenBLAS.git",
         OPENBLAS_TAG,
     )
+    # OpenBLAS builds in-tree; always clean before each build so that a
+    # second (AVX2) pass doesn't inherit object files from the first.
+    run("make", "clean", cwd=src)
+
+    make_vars = []
+    if platform.system() == "Windows":
+        make_vars.append("BINARY=64")
+    if target:
+        # Explicit CPU target (e.g. TARGET=HASWELL for AVX2 build).
+        make_vars.append(f"TARGET={target}")
+    elif dynamic_arch and platform.system() != "Windows":
+        # DYNAMIC_ARCH=1 compiles multiple kernels and dispatches at runtime;
+        # not used on Windows where the wheel is always x86_64 native.
+        make_vars.append("DYNAMIC_ARCH=1")
+
     # Build static + shared libs (libs target skips test suite).
     # Building shared is required on all platforms so configure scripts
     # (CoinUtils LAPACK test) can link against the shared library — static
     # requires explicit Fortran runtime flags which is fragile.
-    make_extra = ["BINARY=64"] if platform.system() == "Windows" else []
-    run("make", f"-j{NPROC}", "libs", "shared", *make_extra, cwd=src)
-    run("make", *make_extra, f"PREFIX={DIST_DIR}", "install", cwd=src)
+    run("make", f"-j{NPROC}", "libs", "shared", *make_vars, cwd=src)
+    run("make", *make_vars, f"PREFIX={dest_dir}", "install", cwd=src)
 
 
 # ── Build SuiteSparse AMD (static only, direct compilation) ──────────────────
@@ -224,12 +243,25 @@ def build_nauty():
 
 # ── Build COIN-OR projects ────────────────────────────────────────────────────
 
-def build_coin_or():
+def build_coin_or(dest_dir=None, extra_cxxflags=""):
+    """Build the full COIN-OR stack and install into *dest_dir*.
+
+    *extra_cxxflags* is appended to CXXFLAGS and can be used to enable
+    architecture-specific optimisations (e.g. "-O3 -mavx2 -mfma -DCOIN_AVX2=4"
+    for the Haswell-optimised build).
+    """
+    if dest_dir is None:
+        dest_dir = DIST_DIR
+    lib_dir = os.path.join(dest_dir, "lib")
+
+    # AMD and nauty are pure combinatorial/integer libraries that do not
+    # benefit from AVX2 and are only built once (into the base cbc_dist/).
+    # Both COIN-OR variants can safely link against the same static archives.
     amd_inc   = os.path.join(DIST_DIR, "include", "suitesparse")
     nauty_inc = os.path.join(DIST_DIR, "include", "nauty")
 
     env = os.environ.copy()
-    pkg_config_dir = os.path.join(LIB_DIR, "pkgconfig")
+    pkg_config_dir = os.path.join(lib_dir, "pkgconfig")
     # MSYS2 bash uses ':' as separator and MSYS2-format paths.
     if platform.system() == "Windows":
         env["PKG_CONFIG_PATH"] = (
@@ -244,8 +276,8 @@ def build_coin_or():
     # zlib is intentionally kept enabled (it is manylinux2014-allowed and
     # lets CBC read compressed MPS/LP files).
     common = [
-        f"--prefix={DIST_DIR}",
-        f"--libdir={LIB_DIR}",
+        f"--prefix={dest_dir}",
+        f"--libdir={lib_dir}",
         "--enable-static" if platform.system() != "Windows" else "--disable-static",
         "--enable-shared",      # produce .so/.dylib/.dll for cffi use
         "--disable-readline",   # libreadline not manylinux-allowed
@@ -262,9 +294,13 @@ def build_coin_or():
         # lib*.dll (MinGW convention) rather than cyg*.dll (Cygwin convention).
         common += ["--build=x86_64-w64-mingw32", "--host=x86_64-w64-mingw32"]
 
+    # Use a distinct build sub-directory per variant so that the generic and
+    # AVX2 builds can coexist in the same cloned source tree.
+    bld_suffix = "_build" if dest_dir == DIST_DIR else "_build_avx2"
+
     for name, url in COIN_REPOS:
         src = clone_if_missing(name, url)
-        bld = os.path.join(src, "_build")
+        bld = os.path.join(src, bld_suffix)
         os.makedirs(bld, exist_ok=True)
 
         extra = []
@@ -272,7 +308,7 @@ def build_coin_or():
             # OpenBLAS provides both BLAS and LAPACK in one archive.
             # AMD provides fill-reducing ordering for sparse systems.
             extra += [
-                f"--with-lapack-lflags=-L{LIB_DIR} -lopenblas",
+                f"--with-lapack-lflags=-L{lib_dir} -lopenblas",
                 f"--with-amd-cflags=-I{amd_inc}",
                 f"--with-amd-lflags=-L{LIB_DIR} -lamd -lsuitesparseconfig",
             ]
@@ -283,7 +319,7 @@ def build_coin_or():
             # clang rejects inside extern "C".  AMD ordering is still available
             # to CBC through CoinUtils which doesn't have this wrapping issue.
             extra += [
-                f"--with-lapack-lflags=-L{LIB_DIR} -lopenblas",
+                f"--with-lapack-lflags=-L{lib_dir} -lopenblas",
             ]
         elif name == "Cbc":
             nauty_pthread = "" if platform.system() == "Windows" else " -lpthread"
@@ -312,7 +348,8 @@ def build_coin_or():
         # AC_COIN_PROG_LIBTOOL macro already appends -no-undefined to
         # LT_LDFLAGS internally (aclocal.m4), which is the correct path —
         # it reaches libtool only when building shared libraries.
-        run(configure, *common, *extra, "CXXFLAGS=-std=c++17", cwd=bld, env=env)
+        cxxflags = f"-std=c++17{' ' + extra_cxxflags if extra_cxxflags else ''}"
+        run(configure, *common, *extra, f"CXXFLAGS={cxxflags}", cwd=bld, env=env)
         run("make", "-j", NPROC, cwd=bld)
         run("make", "install", cwd=bld)
 
@@ -491,7 +528,7 @@ def bundle_dynamic_deps(binary: str, lib_dir: str, _visited: set = None):
 
 # ── Windows: mirror DLLs into lib/ ───────────────────────────────────────────
 
-def copy_win_dlls_to_lib():
+def copy_win_dlls_to_lib(dist_dir=None):
     """Copy every DLL from bin/ into lib/ as well.
 
     On Windows, libtool installs DLLs to bindir (bin/) and import libs
@@ -500,10 +537,13 @@ def copy_win_dlls_to_lib():
     DLLs must also be present there — both the COIN-OR ones (libCbc.dll, …)
     and the bundled MinGW runtime DLLs they depend on.
     """
-    bin_dir = os.path.join(DIST_DIR, "bin")
-    os.makedirs(LIB_DIR, exist_ok=True)
+    if dist_dir is None:
+        dist_dir = DIST_DIR
+    bin_dir = os.path.join(dist_dir, "bin")
+    lib_dir = os.path.join(dist_dir, "lib")
+    os.makedirs(lib_dir, exist_ok=True)
     for dll in _glob.glob(os.path.join(bin_dir, "*.dll")):
-        dst = os.path.join(LIB_DIR, os.path.basename(dll))
+        dst = os.path.join(lib_dir, os.path.basename(dll))
         if not os.path.exists(dst):
             shutil.copy2(dll, dst)
 
@@ -512,37 +552,48 @@ def copy_win_dlls_to_lib():
 _cbc_exe = "cbc.exe" if platform.system() == "Windows" else "cbc"
 
 if not os.path.exists(os.path.join(DIST_DIR, "bin", _cbc_exe)):
-    build_openblas()
+    build_openblas(DIST_DIR, dynamic_arch=True)
     build_amd()
     build_nauty()
-    build_coin_or()
+    build_coin_or(DIST_DIR)
 
-# Patch rpaths / bundle DLLs for every built binary and shared library.
-_bundle_dir = os.path.join(DIST_DIR, "bin") if platform.system() == "Windows" else LIB_DIR
+# AVX2-optimised build: x86_64 Linux and macOS only.
+# Skipped on Windows because: (a) the CI build already takes ~67 min, and
+# (b) all supported Windows CI runners are modern x86_64 machines anyway.
+_build_avx2 = _is_x86_64() and platform.system() != "Windows"
+if _build_avx2 and not os.path.exists(os.path.join(DIST_DIR_AVX2, "bin", _cbc_exe)):
+    build_openblas(DIST_DIR_AVX2, target="HASWELL")
+    build_coin_or(DIST_DIR_AVX2, extra_cxxflags="-O3 -mavx2 -mfma -DCOIN_AVX2=4")
 
-# Binaries first.
-for _bin_name in [_cbc_exe, "clp.exe" if platform.system() == "Windows" else "clp"]:
-    _bin_path = os.path.join(DIST_DIR, "bin", _bin_name)
-    if os.path.exists(_bin_path):
-        bundle_dynamic_deps(_bin_path, _bundle_dir)
 
-# Shared libraries — patch each .so/.dylib/.dll so they are self-contained
-# and usable directly via cffi/ctypes.
-if platform.system() == "Windows":
-    _shared_pattern = os.path.join(DIST_DIR, "bin", "*.dll")
-elif platform.system() == "Darwin":
-    _shared_pattern = os.path.join(LIB_DIR, "*.dylib")
-else:
-    _shared_pattern = os.path.join(LIB_DIR, "*.so*")
+def _bundle_dist(dist_dir):
+    """Patch rpaths / bundle DLLs for all binaries and shared libs in *dist_dir*."""
+    lib_dir    = os.path.join(dist_dir, "lib")
+    bundle_dir = os.path.join(dist_dir, "bin") if platform.system() == "Windows" else lib_dir
 
-for _lib_path in _glob.glob(_shared_pattern):
-    # Skip symlinks (they point to the real file already processed).
-    if not os.path.islink(_lib_path):
-        bundle_dynamic_deps(_lib_path, _bundle_dir)
+    for bin_name in [_cbc_exe, "clp.exe" if platform.system() == "Windows" else "clp"]:
+        bin_path = os.path.join(dist_dir, "bin", bin_name)
+        if os.path.exists(bin_path):
+            bundle_dynamic_deps(bin_path, bundle_dir)
 
-# Mirror all DLLs from bin/ into lib/ so ctypes consumers using cbc_lib_dir() find them.
-if platform.system() == "Windows":
-    copy_win_dlls_to_lib()
+    if platform.system() == "Windows":
+        shared_pattern = os.path.join(dist_dir, "bin", "*.dll")
+    elif platform.system() == "Darwin":
+        shared_pattern = os.path.join(lib_dir, "*.dylib")
+    else:
+        shared_pattern = os.path.join(lib_dir, "*.so*")
+
+    for lib_path in _glob.glob(shared_pattern):
+        if not os.path.islink(lib_path):
+            bundle_dynamic_deps(lib_path, bundle_dir)
+
+    if platform.system() == "Windows":
+        copy_win_dlls_to_lib(dist_dir)
+
+
+_bundle_dist(DIST_DIR)
+if _build_avx2 and os.path.isdir(DIST_DIR_AVX2):
+    _bundle_dist(DIST_DIR_AVX2)
 
 
 # ── Package ───────────────────────────────────────────────────────────────────
@@ -571,6 +622,15 @@ try:
     dist_name = "cbc_dist"
     shutil.copytree(DIST_DIR, os.path.join(_pkg_dir, dist_name), dirs_exist_ok=True)
 
+    package_data_patterns = [f"{dist_name}/**"]
+
+    # Include the AVX2-optimised build when present (x86_64 Linux/macOS only).
+    dist_name_avx2 = "cbc_dist_avx2"
+    if os.path.isdir(DIST_DIR_AVX2):
+        shutil.copytree(DIST_DIR_AVX2, os.path.join(_pkg_dir, dist_name_avx2),
+                        dirs_exist_ok=True)
+        package_data_patterns.append(f"{dist_name_avx2}/**")
+
     for fname in ["__init__.py", "__main__.py"]:
         shutil.copy2(os.path.join(THIS_DIR, "src", fname), os.path.join(_pkg_dir, fname))
 
@@ -582,7 +642,7 @@ try:
         zip_safe=False,
         package_dir={"cbcbox": _PKG_STAGING},
         package_data={
-            "cbcbox": [f"{dist_name}/**"],
+            "cbcbox": package_data_patterns,
         },
     )
 finally:
