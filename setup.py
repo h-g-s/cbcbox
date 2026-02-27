@@ -174,7 +174,7 @@ def build_openblas(dest_dir, *, dynamic_arch=False, target=None):
 
 # ── Build SuiteSparse AMD (static only, direct compilation) ──────────────────
 
-def build_amd():
+def build_amd(extra_cflags=""):
     src = clone_if_missing(
         "SuiteSparse",
         "https://github.com/DrTimothyAldenDavis/SuiteSparse.git",
@@ -195,6 +195,8 @@ def build_amd():
     # Fortran runtime libraries).
     cc = os.environ.get("CC", "gcc")
     cflags = ["-O2", "-fPIC", f"-I{ss_dir}", f"-I{amd_inc}"]
+    if extra_cflags:
+        cflags.extend(extra_cflags.split())
 
     # SuiteSparse_config.c → libsuitesparseconfig.a
     ss_obj = os.path.join(THIS_DIR, "_ss_config.o")
@@ -218,7 +220,7 @@ def build_amd():
 
 # ── Build nauty (static) ──────────────────────────────────────────────────────
 
-def build_nauty():
+def build_nauty(extra_cflags=""):
     src = os.path.join(THIS_DIR, f"nauty{NAUTY_VERSION}")
     if not os.path.exists(src):
         tarball = os.path.join(THIS_DIR, f"nauty{NAUTY_VERSION}.tar.gz")
@@ -230,7 +232,8 @@ def build_nauty():
 
     # nauty ships its own configure; no --prefix support, so install manually.
     # Pass CFLAGS=-fPIC so the static archive can be linked into shared libs.
-    run("./configure", "CFLAGS=-O2 -fPIC", cwd=src)
+    cflags_str = f"-O2 -fPIC{' ' + extra_cflags if extra_cflags else ''}"
+    run("./configure", f"CFLAGS={cflags_str}", cwd=src)
     run("make", "-j", NPROC, cwd=src)
 
     os.makedirs(LIB_DIR, exist_ok=True)
@@ -568,23 +571,46 @@ def copy_win_dlls_to_lib(dist_dir=None):
 
 _cbc_exe = "cbc.exe" if platform.system() == "Windows" else "cbc"
 
-if not os.path.exists(os.path.join(DIST_DIR, "bin", _cbc_exe)):
+# CBCBOX_BUILD_VARIANT controls which variants are compiled (used by CI to run
+# generic and AVX2 builds in parallel jobs):
+#   unset / "all"  — build both generic and AVX2 (default, local behaviour)
+#   "generic"      — build only the generic variant
+#   "avx2"         — build only the AVX2 variant
+# In "avx2" mode AMD and nauty are still compiled (as link-time static deps
+# for the COIN-OR AVX2 build) but with Haswell-optimised flags.
+#
+# CBCBOX_BUILD_ONLY=1 — skip the wheel-packaging stage (used by CI compile
+# jobs that only need the binaries, not the final .whl).
+_build_variant = os.environ.get("CBCBOX_BUILD_VARIANT", "")
+_build_generic = _build_variant != "avx2"
+_build_avx2    = _is_x86_64() and _build_variant != "generic"
+
+# Flags applied to all C/C++ code in the AVX2 variant, including the static
+# AMD and nauty libraries that are ultimately linked into COIN-OR .so/.dylib.
+_AVX2_CFLAGS = "-O3 -march=haswell"
+
+if _build_generic and not os.path.exists(os.path.join(DIST_DIR, "bin", _cbc_exe)):
     build_openblas(DIST_DIR, dynamic_arch=True)
     build_amd()
     build_nauty()
     build_coin_or(DIST_DIR)
 
 # AVX2-optimised build: all x86_64 platforms (Linux, macOS, Windows).
-_build_avx2 = _is_x86_64()
+# In avx2-only mode AMD and nauty are still needed as link-time static deps for
+# the COIN-OR AVX2 build; compile them with Haswell flags so they are fully
+# optimised and end up embedded in the AVX2 COIN-OR shared libraries.
+if not _build_generic and not os.path.exists(os.path.join(LIB_DIR, "libamd.a")):
+    build_amd(extra_cflags=_AVX2_CFLAGS)
+    build_nauty(extra_cflags=_AVX2_CFLAGS)
+
 if _build_avx2 and not os.path.exists(os.path.join(DIST_DIR_AVX2, "bin", _cbc_exe)):
-    # Use DYNAMIC_ARCH=1 (same as generic build) rather than TARGET=HASWELL.
-    # TARGET=HASWELL mandates aligned AVX2 loads in dgetrf_single; CoinDense-
-    # Factorization passes unaligned data which causes SIGSEGV on macOS Intel.
-    # DYNAMIC_ARCH dispatches to the best available kernel at runtime (Haswell
-    # on Haswell hardware) without the strict alignment assumption.
-    # The AVX2 performance advantage comes from -march=haswell on the COIN-OR stack.
+    # Use DYNAMIC_ARCH=1 rather than TARGET=HASWELL for OpenBLAS: TARGET=HASWELL
+    # mandates aligned AVX2 loads in dgetrf_single; CoinDenseFactorization may
+    # pass unaligned data which causes SIGSEGV on macOS Intel.  DYNAMIC_ARCH
+    # dispatches to the best available kernel at runtime without that assumption.
+    # The Haswell advantage comes from -march=haswell on the COIN-OR stack.
     build_openblas(DIST_DIR_AVX2, dynamic_arch=True)
-    build_coin_or(DIST_DIR_AVX2, extra_cxxflags="-O3 -march=haswell -DCOIN_AVX2=4")
+    build_coin_or(DIST_DIR_AVX2, extra_cxxflags=f"{_AVX2_CFLAGS} -DCOIN_AVX2=4")
 
 
 def _bundle_dist(dist_dir):
@@ -618,8 +644,10 @@ if _build_avx2 and os.path.isdir(DIST_DIR_AVX2):
 
 
 # ── Package ───────────────────────────────────────────────────────────────────
-
-long_description = """\
+# Skip the wheel-packaging stage when CBCBOX_BUILD_ONLY=1 (CI compile jobs
+# that only need the pre-built binaries, not the final .whl).
+if not os.environ.get("CBCBOX_BUILD_ONLY"):
+    long_description = """\
 **cbcbox** ships pre-built binaries of the
 [CBC](https://github.com/coin-or/Cbc) MILP solver (COIN-OR Branch and Cut),
 built from the latest master branch of the COIN-OR repositories.
@@ -631,40 +659,40 @@ Built with:
 - zlib for reading compressed MPS/LP files
 """
 
-# setuptools requires package_dir values to be relative paths (not absolute).
-# Use a staging dir inside THIS_DIR so we can pass a simple relative name.
-_PKG_STAGING = "_cbcbox_pkg"
-_pkg_dir = os.path.join(THIS_DIR, _PKG_STAGING)
-if os.path.exists(_pkg_dir):
-    shutil.rmtree(_pkg_dir)
-os.makedirs(_pkg_dir)
+    # setuptools requires package_dir values to be relative paths (not absolute).
+    # Use a staging dir inside THIS_DIR so we can pass a simple relative name.
+    _PKG_STAGING = "_cbcbox_pkg"
+    _pkg_dir = os.path.join(THIS_DIR, _PKG_STAGING)
+    if os.path.exists(_pkg_dir):
+        shutil.rmtree(_pkg_dir)
+    os.makedirs(_pkg_dir)
 
-try:
-    dist_name = "cbc_dist"
-    shutil.copytree(DIST_DIR, os.path.join(_pkg_dir, dist_name), dirs_exist_ok=True)
+    try:
+        dist_name = "cbc_dist"
+        shutil.copytree(DIST_DIR, os.path.join(_pkg_dir, dist_name), dirs_exist_ok=True)
 
-    package_data_patterns = [f"{dist_name}/**"]
+        package_data_patterns = [f"{dist_name}/**"]
 
-    # Include the AVX2-optimised build when present (x86_64 Linux/macOS/Windows).
-    dist_name_avx2 = "cbc_dist_avx2"
-    if os.path.isdir(DIST_DIR_AVX2):
-        shutil.copytree(DIST_DIR_AVX2, os.path.join(_pkg_dir, dist_name_avx2),
-                        dirs_exist_ok=True)
-        package_data_patterns.append(f"{dist_name_avx2}/**")
+        # Include the AVX2-optimised build when present (x86_64 Linux/macOS/Windows).
+        dist_name_avx2 = "cbc_dist_avx2"
+        if os.path.isdir(DIST_DIR_AVX2):
+            shutil.copytree(DIST_DIR_AVX2, os.path.join(_pkg_dir, dist_name_avx2),
+                            dirs_exist_ok=True)
+            package_data_patterns.append(f"{dist_name_avx2}/**")
 
-    for fname in ["__init__.py", "__main__.py"]:
-        shutil.copy2(os.path.join(THIS_DIR, "src", fname), os.path.join(_pkg_dir, fname))
+        for fname in ["__init__.py", "__main__.py"]:
+            shutil.copy2(os.path.join(THIS_DIR, "src", fname), os.path.join(_pkg_dir, fname))
 
-    setup(
-        cmdclass=cmdclass,
-        long_description=long_description,
-        long_description_content_type="text/markdown",
-        packages=["cbcbox"],
-        zip_safe=False,
-        package_dir={"cbcbox": _PKG_STAGING},
-        package_data={
-            "cbcbox": package_data_patterns,
-        },
-    )
-finally:
-    shutil.rmtree(_pkg_dir, ignore_errors=True)
+        setup(
+            cmdclass=cmdclass,
+            long_description=long_description,
+            long_description_content_type="text/markdown",
+            packages=["cbcbox"],
+            zip_safe=False,
+            package_dir={"cbcbox": _PKG_STAGING},
+            package_data={
+                "cbcbox": package_data_patterns,
+            },
+        )
+    finally:
+        shutil.rmtree(_pkg_dir, ignore_errors=True)

@@ -15,47 +15,22 @@ on:
           
 
 jobs:
-  build_wheels:
+
+  # ── ARM64 platforms: single job each (no AVX2 variant) ──────────────────────
+  build_wheels_arm:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            arch: x86_64
           - os: ubuntu-24.04-arm
             arch: aarch64
           - os: macos-15
             arch: arm64
-          - os: macos-15-intel
-            arch: x86_64
-          - os: windows-latest
-            arch: AMD64
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up QEMU (for Linux aarch64 emulation)
-        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'aarch64'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-
-      # Refresh MSYS2 package database and install the MinGW64 toolchain before
-      # cibuildwheel runs. Doing this as a dedicated step (rather than inside
-      # CIBW_BEFORE_ALL_WINDOWS) gives clearer error messages and avoids mirror
-      # failures caused by a stale pacman database.
-      - name: Set up MSYS2 toolchain (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: C:\msys64\usr\bin\bash.exe -l {0}
-        run: |
-          pacman -Sy --noconfirm
-          pacman -S --needed --noconfirm \
-            mingw-w64-x86_64-gcc \
-            mingw-w64-x86_64-gcc-fortran \
-            make \
-            autoconf automake libtool pkg-config
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.3.1
@@ -63,28 +38,15 @@ jobs:
           CIBW_BUILD: "cp313-* pp3*-*"
           CIBW_SKIP: "*musllinux*"
           CIBW_ARCHS: "${{ matrix.arch }}"
-          CIBW_MANYLINUX_X86_64_IMAGE: "quay.io/pypa/manylinux2014_x86_64"
           CIBW_MANYLINUX_AARCH64_IMAGE: "quay.io/pypa/manylinux2014_aarch64"
-          # gfortran: needed to build OpenBLAS with full LAPACK support.
-          # patchelf: used by bundle_dynamic_deps to set $ORIGIN rpaths and
-          #           read ELF sonames of bundled libs (libgfortran, etc.).
           CIBW_BEFORE_ALL_LINUX: >
             yum install -y gcc-gfortran &&
             pip install patchelf
-          # gfortran ships with the pre-installed Xcode / GCC on macOS runners.
-          # Install it explicitly only if somehow absent.
           CIBW_BEFORE_ALL_MACOS: >
             which gfortran || brew install gcc
-          # Toolchain already installed in the "Set up MSYS2 toolchain" step above.
-          CIBW_BEFORE_ALL_WINDOWS: ""
-          # On Linux, cibuildwheel runs tests inside Docker; /output is the only
-          # bind-mounted dir visible on the host.  Tell conftest.py to write
-          # perf reports there so they can be uploaded as CI artifacts.
           CIBW_ENVIRONMENT_LINUX: "PERF_REPORT_DIR=/output"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
-          # DLL bundling is done by setup.py; skip delocate/delvewheel.
-          CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: ""
           CIBW_TEST_REQUIRES: "pytest"
           CIBW_TEST_COMMAND: "pytest {package}/tests/ -v"
         with:
@@ -112,9 +74,307 @@ jobs:
             tests/perf_report.md
             tests/perf_report.json
 
+  # ── Linux x86_64 ─────────────────────────────────────────────────────────────
+  # Both variants are compiled inside the manylinux2014 container so the
+  # resulting binaries are ABI-compatible with any manylinux2014+ distro.
+  # Using cp313 Python from the image ensures all setup.py features work.
+
+  compile-linux-x64-generic:
+    name: Compile Linux x86_64 generic
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build generic binary (manylinux2014)
+        run: |
+          docker run --rm \
+            -v "$PWD:/project" \
+            -e CBCBOX_BUILD_VARIANT=generic \
+            -e CBCBOX_BUILD_ONLY=1 \
+            quay.io/pypa/manylinux2014_x86_64 \
+            bash -c 'export PATH=/opt/python/cp313-cp313/bin:$PATH &&
+                     yum install -y gcc-gfortran &&
+                     pip install setuptools wheel patchelf &&
+                     cd /project &&
+                     python setup.py build_ext'
+          sudo chown -R "$USER:$USER" cbc_dist/ 2>/dev/null || true
+          tar -czf cbc_dist_generic.tar.gz cbc_dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cbc-dist-linux-x64-generic
+          path: cbc_dist_generic.tar.gz
+
+  compile-linux-x64-avx2:
+    name: Compile Linux x86_64 AVX2
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build AVX2 binary (manylinux2014)
+        run: |
+          docker run --rm \
+            -v "$PWD:/project" \
+            -e CBCBOX_BUILD_VARIANT=avx2 \
+            -e CBCBOX_BUILD_ONLY=1 \
+            quay.io/pypa/manylinux2014_x86_64 \
+            bash -c 'export PATH=/opt/python/cp313-cp313/bin:$PATH &&
+                     yum install -y gcc-gfortran &&
+                     pip install setuptools wheel patchelf &&
+                     cd /project &&
+                     python setup.py build_ext'
+          sudo chown -R "$USER:$USER" cbc_dist_avx2/ 2>/dev/null || true
+          tar -czf cbc_dist_avx2.tar.gz cbc_dist_avx2/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cbc-dist-linux-x64-avx2
+          path: cbc_dist_avx2.tar.gz
+
+  package-linux-x64:
+    name: Package Linux x86_64 wheel
+    needs: [compile-linux-x64-generic, compile-linux-x64-avx2]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: cbc-dist-linux-x64-generic
+          path: .
+      - run: tar -xzf cbc_dist_generic.tar.gz
+      - uses: actions/download-artifact@v4
+        with:
+          name: cbc-dist-linux-x64-avx2
+          path: .
+      - run: tar -xzf cbc_dist_avx2.tar.gz
+      - name: Build and test wheel (compilation skipped — binaries pre-built)
+        uses: pypa/cibuildwheel@v3.3.1
+        env:
+          CIBW_BUILD: "cp313-* pp3*-*"
+          CIBW_SKIP: "*musllinux*"
+          CIBW_ARCHS: "x86_64"
+          CIBW_MANYLINUX_X86_64_IMAGE: "quay.io/pypa/manylinux2014_x86_64"
+          CIBW_BEFORE_ALL_LINUX: >
+            yum install -y gcc-gfortran &&
+            pip install patchelf
+          CIBW_ENVIRONMENT_LINUX: "PERF_REPORT_DIR=/output"
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""
+          CIBW_TEST_REQUIRES: "pytest"
+          CIBW_TEST_COMMAND: "pytest {package}/tests/ -v"
+        with:
+          package-dir: .
+          output-dir: wheelhouse
+          config-file: "{package}/pyproject.toml"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cibw-wheels-Linux-X64
+          path: ./wheelhouse/*.whl
+      - name: Copy Linux perf reports from wheelhouse to tests/
+        run: |
+          cp wheelhouse/perf_report.json tests/ 2>/dev/null || true
+          cp wheelhouse/perf_report.md   tests/ 2>/dev/null || true
+      - name: Upload performance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-report-ubuntu-latest-x86_64
+          path: |
+            tests/perf_report.md
+            tests/perf_report.json
+
+  # ── macOS Intel (x86_64) ─────────────────────────────────────────────────────
+
+  compile-macos-intel-generic:
+    name: Compile macOS Intel generic
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install gfortran if needed
+        run: which gfortran || brew install gcc
+      - name: Build generic binary
+        env:
+          CBCBOX_BUILD_VARIANT: generic
+          CBCBOX_BUILD_ONLY: "1"
+        run: python setup.py build_ext
+      - run: tar -czf cbc_dist_generic.tar.gz cbc_dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cbc-dist-macos-intel-generic
+          path: cbc_dist_generic.tar.gz
+
+  compile-macos-intel-avx2:
+    name: Compile macOS Intel AVX2
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install gfortran if needed
+        run: which gfortran || brew install gcc
+      - name: Build AVX2 binary
+        env:
+          CBCBOX_BUILD_VARIANT: avx2
+          CBCBOX_BUILD_ONLY: "1"
+        run: python setup.py build_ext
+      - run: tar -czf cbc_dist_avx2.tar.gz cbc_dist_avx2/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cbc-dist-macos-intel-avx2
+          path: cbc_dist_avx2.tar.gz
+
+  package-macos-intel:
+    name: Package macOS Intel wheel
+    needs: [compile-macos-intel-generic, compile-macos-intel-avx2]
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: cbc-dist-macos-intel-generic
+          path: .
+      - run: tar -xzf cbc_dist_generic.tar.gz
+      - uses: actions/download-artifact@v4
+        with:
+          name: cbc-dist-macos-intel-avx2
+          path: .
+      - run: tar -xzf cbc_dist_avx2.tar.gz
+      - name: Build and test wheel (compilation skipped — binaries pre-built)
+        uses: pypa/cibuildwheel@v3.3.1
+        env:
+          CIBW_BUILD: "cp313-* pp3*-*"
+          CIBW_ARCHS: "x86_64"
+          CIBW_BEFORE_ALL_MACOS: >
+            which gfortran || brew install gcc
+          CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
+          CIBW_TEST_REQUIRES: "pytest"
+          CIBW_TEST_COMMAND: "pytest {package}/tests/ -v"
+        with:
+          package-dir: .
+          output-dir: wheelhouse
+          config-file: "{package}/pyproject.toml"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cibw-wheels-macOS-X64
+          path: ./wheelhouse/*.whl
+      - name: Upload performance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-report-macos-15-intel-x86_64
+          path: |
+            tests/perf_report.md
+            tests/perf_report.json
+
+  # ── Windows (AMD64) ───────────────────────────────────────────────────────────
+
+  compile-windows-generic:
+    name: Compile Windows generic
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up MSYS2 toolchain
+        shell: C:\msys64\usr\bin\bash.exe -l {0}
+        run: |
+          pacman -Sy --noconfirm
+          pacman -S --needed --noconfirm \
+            mingw-w64-x86_64-gcc \
+            mingw-w64-x86_64-gcc-fortran \
+            make \
+            autoconf automake libtool pkg-config
+      - name: Build generic binary
+        env:
+          CBCBOX_BUILD_VARIANT: generic
+          CBCBOX_BUILD_ONLY: "1"
+        run: python setup.py build_ext
+      - run: tar -czf cbc_dist_generic.tar.gz cbc_dist/
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cbc-dist-windows-generic
+          path: cbc_dist_generic.tar.gz
+
+  compile-windows-avx2:
+    name: Compile Windows AVX2
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up MSYS2 toolchain
+        shell: C:\msys64\usr\bin\bash.exe -l {0}
+        run: |
+          pacman -Sy --noconfirm
+          pacman -S --needed --noconfirm \
+            mingw-w64-x86_64-gcc \
+            mingw-w64-x86_64-gcc-fortran \
+            make \
+            autoconf automake libtool pkg-config
+      - name: Build AVX2 binary
+        env:
+          CBCBOX_BUILD_VARIANT: avx2
+          CBCBOX_BUILD_ONLY: "1"
+        run: python setup.py build_ext
+      - run: tar -czf cbc_dist_avx2.tar.gz cbc_dist_avx2/
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cbc-dist-windows-avx2
+          path: cbc_dist_avx2.tar.gz
+
+  package-windows:
+    name: Package Windows wheel
+    needs: [compile-windows-generic, compile-windows-avx2]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up MSYS2 toolchain
+        shell: C:\msys64\usr\bin\bash.exe -l {0}
+        run: |
+          pacman -Sy --noconfirm
+          pacman -S --needed --noconfirm \
+            mingw-w64-x86_64-gcc \
+            mingw-w64-x86_64-gcc-fortran \
+            make \
+            autoconf automake libtool pkg-config
+      - uses: actions/download-artifact@v4
+        with:
+          name: cbc-dist-windows-generic
+          path: .
+      - run: tar -xzf cbc_dist_generic.tar.gz
+        shell: bash
+      - uses: actions/download-artifact@v4
+        with:
+          name: cbc-dist-windows-avx2
+          path: .
+      - run: tar -xzf cbc_dist_avx2.tar.gz
+        shell: bash
+      - name: Build and test wheel (compilation skipped — binaries pre-built)
+        uses: pypa/cibuildwheel@v3.3.1
+        env:
+          CIBW_BUILD: "cp313-* pp3*-*"
+          CIBW_ARCHS: "AMD64"
+          CIBW_BEFORE_ALL_WINDOWS: ""
+          CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: ""
+          CIBW_TEST_REQUIRES: "pytest"
+          CIBW_TEST_COMMAND: "pytest {package}/tests/ -v"
+        with:
+          package-dir: .
+          output-dir: wheelhouse
+          config-file: "{package}/pyproject.toml"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cibw-wheels-Windows-AMD64
+          path: ./wheelhouse/*.whl
+      - name: Upload performance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-report-windows-latest-AMD64
+          path: |
+            tests/perf_report.md
+            tests/perf_report.json
+
+  # ── Combine performance reports ───────────────────────────────────────────────
+
   combine_reports:
     name: Combine performance reports
-    needs: build_wheels
+    needs:
+      - build_wheels_arm
+      - package-linux-x64
+      - package-macos-intel
+      - package-windows
     runs-on: ubuntu-latest
     if: always()
     permissions:
@@ -146,10 +406,15 @@ jobs:
           git diff --staged --quiet && echo "README unchanged" || \
             (git commit -m "docs: update performance results [skip ci]" && git push)
 
+  # ── Publish ───────────────────────────────────────────────────────────────────
+
   publish-to-testpypi:
     name: Publish Python wheels to TestPyPI
     needs:
-    - build_wheels
+      - build_wheels_arm
+      - package-linux-x64
+      - package-macos-intel
+      - package-windows
     runs-on: ubuntu-latest
     if: github.event.inputs.publish == 'testpypi'
 
@@ -177,7 +442,10 @@ jobs:
   publish-to-pypi:
     name: Publish Python wheels to PyPI
     needs:
-    - build_wheels
+      - build_wheels_arm
+      - package-linux-x64
+      - package-macos-intel
+      - package-windows
     runs-on: ubuntu-latest
     if: github.event.inputs.publish == 'pypi'
 
@@ -201,3 +469,4 @@ jobs:
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         repository-url: https://upload.pypi.org/legacy/
+
