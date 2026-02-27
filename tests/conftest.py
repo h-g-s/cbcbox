@@ -55,8 +55,6 @@ def pytest_sessionfinish(session, exitstatus):
         "python_version": py_ver,
         "results": results,
     }
-    with open(os.path.join(base_dir, "perf_report.json"), "w") as f:
-        json.dump(payload, f, indent=2)
 
     # --- Markdown (human-readable, per-platform quick view) -------------------
     variants      = list(dict.fromkeys(r.get("build_variant", "generic") for r in results))
@@ -111,5 +109,11 @@ def pytest_sessionfinish(session, exitstatus):
             )
         lines.append("")
 
-    with open(os.path.join(base_dir, "perf_report.md"), "w") as f:
-        f.write("\n".join(lines))
+    try:
+        with open(os.path.join(base_dir, "perf_report.json"), "w") as f:
+            json.dump(payload, f, indent=2)
+        with open(os.path.join(base_dir, "perf_report.md"), "w") as f:
+            f.write("\n".join(lines))
+    except OSError as exc:
+        print(f"\n[cbcbox] WARNING: could not write perf report to {base_dir!r}: {exc}",
+              file=sys.stderr)
