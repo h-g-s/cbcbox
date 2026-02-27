@@ -20,8 +20,9 @@ CASES = [
 CBC_TIME_LIMIT = 480
 
 
-def _solve_and_get_obj(mps_file: str, time_limit: int = CBC_TIME_LIMIT,
-                       threads: int = 1, timeout: int = 540):
+def _solve_and_get_obj(mps_file: str, cbc_binary: str = None,
+                        time_limit: int = CBC_TIME_LIMIT,
+                        threads: int = 1, timeout: int = 540):
     """Run CBC on *mps_file*, return (objective, elapsed_seconds).
 
     Parses the final "Optimal - objective value X" line specifically to avoid
@@ -29,7 +30,7 @@ def _solve_and_get_obj(mps_file: str, time_limit: int = CBC_TIME_LIMIT,
         "After applying Clique Strengthening continuous objective value is ..."
     Elapsed wall-clock time is parsed from CBC's "Wallclock seconds)" summary line.
     """
-    cmd = [cbcbox.cbc_bin_path(), mps_file, f"-seconds={time_limit}", "-timem", "elapsed"]
+    cmd = [cbc_binary or cbcbox.cbc_bin_path(), mps_file, f"-seconds={time_limit}", "-timem", "elapsed"]
     if threads > 1:
         cmd += [f"-threads={threads}"]
     cmd += ["-solve", "-quit"]
@@ -68,21 +69,25 @@ def test_cbc_binary_exists():
 
 
 @pytest.mark.parametrize("filename,expected", CASES)
-def test_solve(filename, expected, request):
+def test_solve(filename, expected, cbc_variant, request):
+    variant_name, cbc_binary = cbc_variant
     mps_file = os.path.join(DATA_DIR, filename)
-    obj, elapsed = _solve_and_get_obj(mps_file)
+    obj, elapsed = _solve_and_get_obj(mps_file, cbc_binary)
     request.config._perf_results.append(
-        {"instance": filename, "threads": 1, "elapsed_s": elapsed, "objective": obj}
+        {"instance": filename, "threads": 1, "elapsed_s": elapsed,
+         "objective": obj, "build_variant": variant_name}
     )
     assert abs(obj - expected) < 1e-4, f"Expected {expected}, got {obj}"
 
 
 @pytest.mark.parametrize("filename,expected", CASES)
-def test_solve_parallel(filename, expected, request):
+def test_solve_parallel(filename, expected, cbc_variant, request):
     """Same instances solved with 3 threads to verify --enable-cbc-parallel."""
+    variant_name, cbc_binary = cbc_variant
     mps_file = os.path.join(DATA_DIR, filename)
-    obj, elapsed = _solve_and_get_obj(mps_file, threads=3)
+    obj, elapsed = _solve_and_get_obj(mps_file, cbc_binary, threads=3)
     request.config._perf_results.append(
-        {"instance": filename, "threads": 3, "elapsed_s": elapsed, "objective": obj}
+        {"instance": filename, "threads": 3, "elapsed_s": elapsed,
+         "objective": obj, "build_variant": variant_name}
     )
     assert abs(obj - expected) < 1e-4, f"Expected {expected}, got {obj} (3 threads)"

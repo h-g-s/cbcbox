@@ -37,9 +37,10 @@ for data in all_data:
 
 thread_counts = sorted({r["threads"] for data in all_data for r in data["results"]})
 
-# Platform label: "Linux x86_64", "Darwin arm64", "Windows AMD64" etc.
-def plat_label(data):
-    return f"{data['platform']} {data['machine']}"
+# Platform label: "Linux x86_64 / generic", "Linux x86_64 / avx2", etc.
+def plat_label(data, variant=None):
+    base = f"{data['platform']} {data['machine']}"
+    return f"{base} / {variant}" if variant else base
 
 lines = [
     "# CBC Performance Report — All Platforms",
@@ -51,25 +52,30 @@ lines = [
 for instance in instances:
     lines += [f"## `{instance}`", ""]
 
-    # Header: Platform | 1 thread (s) | 3 threads (s) | Speedup
+    # Collect all (platform_label, variant) pairs present for this instance.
+    rows = {}  # (plat, variant) -> {threads: elapsed_s}
+    for data in all_data:
+        for r in data["results"]:
+            if r["instance"] != instance:
+                continue
+            variant = r.get("build_variant", "generic")
+            key = (plat_label(data), variant)
+            rows.setdefault(key, {})[r["threads"]] = r.get("elapsed_s")
+
+    # Header: Platform | Build | 1 thread (s) | 3 threads (s) | Speedup
     thread_hdrs = [f"{t} thread{'s' if t > 1 else ''} (s)" for t in thread_counts]
-    header = ["Platform"] + thread_hdrs
+    header = ["Platform", "Build"] + thread_hdrs
     if len(thread_counts) >= 2:
         header.append("Speedup")
     lines.append("| " + " | ".join(header) + " |")
     lines.append("|" + "|".join(["---"] * len(header)) + "|")
 
-    for data in all_data:
-        times = {r["threads"]: r["elapsed_s"]
-                 for r in data["results"] if r["instance"] == instance}
-        if not times:
-            continue
-
-        row = [plat_label(data)]
+    # One row per (platform, variant), grouped so generic/avx2 are adjacent.
+    for (plat, variant), times in sorted(rows.items()):
+        row = [plat, variant]
         for t in thread_counts:
             elapsed = times.get(t)
             row.append(f"{elapsed:.2f}" if elapsed is not None else "n/a")
-
         if len(thread_counts) >= 2:
             seq = times.get(thread_counts[0])
             par = times.get(thread_counts[-1])
@@ -77,7 +83,6 @@ for instance in instances:
                 row.append(f"{seq / par:.2f}×")
             else:
                 row.append("n/a")
-
         lines.append("| " + " | ".join(row) + " |")
 
     lines.append("")
