@@ -57,10 +57,10 @@ You can override this selection with the `CBCBOX_BUILD` environment variable:
 
 ```bash
 # Force generic (portable) build
-CBCBOX_BUILD=generic python -m cbcbox mymodel.mps -solve -quit
+CBCBOX_BUILD=generic cbc mymodel.mps -solve -quit
 
 # Force AVX2-optimised build (raises an error if not available)
-CBCBOX_BUILD=avx2 python -m cbcbox mymodel.mps -solve -quit
+CBCBOX_BUILD=avx2 cbc mymodel.mps -solve -quit
 ```
 
 When `CBCBOX_BUILD` is set, a short summary of the selected build is printed to
@@ -121,13 +121,21 @@ pip install cbcbox
 
 ### Command line
 
-Invoke the CBC solver directly via the Python module entry point:
+After installation, CBC is available directly as the `cbc` command (pip installs
+the entry point into the environment's `bin/` on Linux/macOS or `Scripts/` on Windows,
+which is already on PATH):
+
+```bash
+cbc mymodel.lp -solve -quit
+cbc mymodel.mps.gz -solve -quit
+cbc mymodel.mps -seconds 60 -timem elapsed -solve -quit
+cbc mymodel.mps -dualp pesteep -solve -quit
+```
+
+Alternatively, invoke via the Python module entry point:
 
 ```bash
 python -m cbcbox mymodel.lp -solve -quit
-python -m cbcbox mymodel.mps.gz -solve -quit
-python -m cbcbox mymodel.mps -seconds 60 -timem elapsed -solve -quit
-python -m cbcbox mymodel.mps -dualp pesteep -solve -quit
 ```
 
 CBC accepts LP, MPS and compressed MPS (`.mps.gz`) files. Pass `-help` for the
@@ -139,7 +147,7 @@ This build includes parallel branch-and-cut (`--enable-cbc-parallel`).
 Use `-threads=N` to distribute the search tree across N threads:
 
 ```bash
-python -m cbcbox mymodel.mps -threads=4 -timem elapsed -solve -quit
+cbc mymodel.mps -threads=4 -timem elapsed -solve -quit
 ```
 
 Use `-timem elapsed` when running parallel so that time limits and reported
@@ -151,7 +159,7 @@ wall time).
 > (N CBC threads × M OpenBLAS threads).  On memory-constrained machines you
 > can cap OpenBLAS to a single thread while keeping CBC parallelism:
 > ```bash
-> OPENBLAS_NUM_THREADS=1 python -m cbcbox mymodel.mps -threads=4 -solve -quit
+> OPENBLAS_NUM_THREADS=1 cbc mymodel.mps -threads=4 -solve -quit
 > ```
 
 #### Barrier (interior-point) solver
@@ -163,10 +171,10 @@ compared to the built-in native Cholesky:
 
 ```bash
 # Solve LP relaxation with barrier + AMD Cholesky, then crossover to simplex basis
-python -m cbcbox mymodel.mps -barrier -cholesky UniversityOfFlorida -solve -quit
+cbc mymodel.mps -barrier -cholesky UniversityOfFlorida -solve -quit
 
 # Useful as a root-node strategy inside MIP (let CBC use simplex for B&B):
-python -m cbcbox mymodel.mps -barrier -cholesky UniversityOfFlorida -solve -quit
+cbc mymodel.mps -barrier -cholesky UniversityOfFlorida -solve -quit
 ```
 
 Without AMD, only `-cholesky native` (less efficient) is available.

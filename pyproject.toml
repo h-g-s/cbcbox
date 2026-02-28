@@ -35,6 +35,9 @@ classifiers = [
 Homepage = "https://github.com/h-g-s/cbcbox"
 "Bug Tracker" = "https://github.com/h-g-s/cbcbox/issues"
 
+[project.scripts]
+cbc = "cbcbox.__main__:main"
+
 [tool.cibuildwheel]
 build-verbosity = 1
 enable = ["pypy"]
