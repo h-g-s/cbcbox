@@ -18,7 +18,7 @@ jobs:
 
   # ── ARM64 platforms: single job each (no AVX2 variant) ──────────────────────
   build_wheels_arm:
-    name: Build wheels on ${{ matrix.os }}
+    name: Build wheels ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -26,8 +26,10 @@ jobs:
         include:
           - os: ubuntu-24.04-arm
             arch: aarch64
+            name: Linux ARM64
           - os: macos-15
             arch: arm64
+            name: macOS ARM64
 
     steps:
       - uses: actions/checkout@v4
