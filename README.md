@@ -327,7 +327,112 @@ Time limits are generous to avoid false failures on slow CI runners.
 > [workflow run](../../actions/workflows/wheel.yml).*
 
 <!-- PERF_RESULTS_START -->
-*No results yet — run the CI workflow to populate this section.*
+
+## Summary
+
+Geometric mean solve time (seconds) across all test instances.
+
+### 1 thread
+
+| Platform | generic (s) | avx2 (s) | avx2 speedup |
+|---|---|---|---|
+| Darwin arm64 | 59.27 | — | — |
+| Darwin x86_64 | 65.47 | 26.76 | 2.45× |
+| Linux aarch64 | 69.96 | — | — |
+| Linux x86_64 | 80.15 | 23.02 | 3.48× |
+| Windows AMD64 | 84.41 | 31.30 | 2.70× |
+
+### 3 threads
+
+| Platform | generic (s) | avx2 (s) | avx2 speedup |
+|---|---|---|---|
+| Darwin arm64 | 61.56 | — | — |
+| Darwin x86_64 | 56.52 | 31.01 | 1.82× |
+| Linux aarch64 | 54.73 | — | — |
+| Linux x86_64 | 62.75 | 23.06 | 2.72× |
+| Windows AMD64 | 78.78 | 31.40 | 2.51× |
+
+## Per-instance results
+
+### `pp08a.mps.gz`
+
+| Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
+|---|---|---|---|---|
+| Darwin arm64 | generic | 9.23 | 20.09 | 0.46× |
+| Darwin x86_64 | avx2 | 4.62 | 15.14 | 0.30× |
+| Darwin x86_64 | generic | 9.68 | 6.04 | 1.60× |
+| Linux aarch64 | generic | 8.99 | 5.94 | 1.51× |
+| Linux x86_64 | avx2 | 4.54 | 7.87 | 0.58× |
+| Linux x86_64 | generic | 9.91 | 6.25 | 1.59× |
+| Windows AMD64 | avx2 | 5.27 | 8.50 | 0.62× |
+| Windows AMD64 | generic | 12.42 | 23.73 | 0.52× |
+
+### `sprint_hidden06_j.mps.gz`
+
+| Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
+|---|---|---|---|---|
+| Darwin arm64 | generic | 131.35 | 133.12 | 0.99× |
+| Darwin x86_64 | avx2 | 48.06 | 51.05 | 0.94× |
+| Darwin x86_64 | generic | 181.43 | 160.84 | 1.13× |
+| Linux aarch64 | generic | 220.56 | 197.30 | 1.12× |
+| Linux x86_64 | avx2 | 56.43 | 52.35 | 1.08× |
+| Linux x86_64 | generic | 241.85 | 223.35 | 1.08× |
+| Windows AMD64 | avx2 | 93.15 | 90.44 | 1.03× |
+| Windows AMD64 | generic | 236.73 | 219.65 | 1.08× |
+
+### `air04.mps.gz`
+
+| Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
+|---|---|---|---|---|
+| Darwin arm64 | generic | 108.57 | 79.37 | 1.37× |
+| Darwin x86_64 | avx2 | 53.47 | 38.03 | 1.41× |
+| Darwin x86_64 | generic | 120.39 | 90.08 | 1.34× |
+| Linux aarch64 | generic | 139.44 | 78.35 | 1.78× |
+| Linux x86_64 | avx2 | 34.36 | 26.58 | 1.29× |
+| Linux x86_64 | generic | 153.14 | 88.55 | 1.73× |
+| Windows AMD64 | avx2 | 43.04 | 35.10 | 1.23× |
+| Windows AMD64 | generic | 152.94 | 85.43 | 1.79× |
+
+### `air05.mps.gz`
+
+| Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
+|---|---|---|---|---|
+| Darwin arm64 | generic | 50.68 | 39.79 | 1.27× |
+| Darwin x86_64 | avx2 | 23.68 | 21.26 | 1.11× |
+| Darwin x86_64 | generic | 55.30 | 42.54 | 1.30× |
+| Linux aarch64 | generic | 51.07 | 34.31 | 1.49× |
+| Linux x86_64 | avx2 | 15.26 | 12.57 | 1.21× |
+| Linux x86_64 | generic | 57.70 | 41.95 | 1.38× |
+| Windows AMD64 | avx2 | 21.51 | 17.45 | 1.23× |
+| Windows AMD64 | generic | 56.58 | 39.68 | 1.43× |
+
+### `nw04.mps.gz`
+
+| Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
+|---|---|---|---|---|
+| Darwin arm64 | generic | 34.55 | 36.89 | 0.94× |
+| Darwin x86_64 | avx2 | 12.19 | 14.08 | 0.87× |
+| Darwin x86_64 | generic | 33.54 | 38.85 | 0.86× |
+| Linux aarch64 | generic | 39.89 | 41.61 | 0.96× |
+| Linux x86_64 | avx2 | 14.17 | 14.62 | 0.97× |
+| Linux x86_64 | generic | 57.55 | 54.46 | 1.06× |
+| Windows AMD64 | avx2 | 18.04 | 18.17 | 0.99× |
+| Windows AMD64 | generic | 63.14 | 60.26 | 1.05× |
+
+### `trd445c.mps.gz`
+
+| Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
+|---|---|---|---|---|
+| Darwin arm64 | generic | 188.06 | 174.70 | 1.08× |
+| Darwin x86_64 | avx2 | 107.14 | 101.04 | 1.06× |
+| Darwin x86_64 | generic | 200.87 | 225.34 | 0.89× |
+| Linux aarch64 | generic | 208.23 | 205.19 | 1.01× |
+| Linux x86_64 | avx2 | 78.25 | 74.74 | 1.05× |
+| Linux x86_64 | generic | 217.43 | 216.19 | 1.01× |
+| Windows AMD64 | avx2 | 114.83 | 112.02 | 1.03× |
+| Windows AMD64 | generic | 225.14 | 224.47 | 1.00× |
+
+
 <!-- PERF_RESULTS_END -->
 
 ## License
