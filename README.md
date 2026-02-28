@@ -317,9 +317,11 @@ performance comparison is recorded:
 |---|---|---|
 | `pp08a.mps.gz` | 7 350 | 300 s |
 | `sprint_hidden06_j.mps.gz` | 130 | 900 s |
+| `air03.mps.gz` | 340 160 | 600 s |
 | `air04.mps.gz` | 56 137 | 600 s |
 | `air05.mps.gz` | 26 374 | 900 s |
 | `nw04.mps.gz` | 16 862 | 900 s |
+| `mzzv11.mps.gz` | −21 718 | 900 s |
 | `trd445c.mps.gz` | −153 419.078836 | 1200 s |
 
 Time limits are generous to avoid false failures on slow CI runners.
