@@ -4,10 +4,10 @@
 [CBC](https://github.com/coin-or/Cbc) MILP solver (COIN-OR Branch and Cut),
 built from the latest COIN-OR master branch.
 
-On x86_64 (Linux, macOS, Windows) the wheel ships both a **Haswell-optimised** binary
-(AVX2/FMA, full `-march=haswell` ISA) for maximum speed and a **generic** build with
+On x86_64 (Linux, macOS, Windows) the wheel ships both a **[Haswell](https://en.wikipedia.org/wiki/Haswell_(microarchitecture))-optimised** binary
+([AVX2](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions)/FMA, full `-march=haswell` ISA) for maximum speed and a **generic** build with
 runtime CPU dispatch for compatibility with any x86_64 machine — selected automatically.
-All dynamic dependencies (OpenBLAS, libgfortran, etc.) are bundled; no system libraries
+All dynamic dependencies ([OpenBLAS](https://github.com/OpenMathLib/OpenBLAS), libgfortran, etc.) are bundled; no system libraries
 or separate installation steps are needed.
 
 ### Highlights
@@ -22,7 +22,7 @@ or separate installation steps are needed.
   distribute the search tree across N threads, giving significant speedups on multi-core
   machines for hard MIP instances.
 
-- **AMD fill-reducing ordering** — SuiteSparse AMD is compiled in, enabling the
+- **AMD fill-reducing ordering** — [SuiteSparse AMD](https://github.com/DrTimothyAldenDavis/SuiteSparse) is compiled in, enabling the
   high-quality `UniversityOfFlorida` Cholesky factorization for Clp's barrier (interior
   point) solver. AMD reordering produces much less fill-in on large sparse problems than
   the built-in native Cholesky, making barrier substantially faster.
@@ -211,9 +211,9 @@ in the following order:
 | **Clp** | master | Simplex LP solver (used as the MIP node relaxation) |
 | **Osi** | master | Open Solver Interface |
 | **CoinUtils** | master | Utility library (shared by all COIN-OR packages) |
-| **Nauty** | 2.8.9 | Symmetry detection for MIP presolve |
-| **AMD** (SuiteSparse v7.12.2) | v7.12.2 | Sparse matrix fill-reducing ordering |
-| **OpenBLAS** | v0.3.31 | Optimised BLAS/LAPACK for LP basis factorisation |
+| **[Nauty](https://pallini.di.uniroma1.it/)** | 2.8.9 | Symmetry detection for MIP presolve |
+| **[AMD](https://github.com/DrTimothyAldenDavis/SuiteSparse)** (SuiteSparse v7.12.2) | v7.12.2 | Sparse matrix fill-reducing ordering |
+| **[OpenBLAS](https://github.com/OpenMathLib/OpenBLAS)** | v0.3.31 | Optimised BLAS/LAPACK for LP basis factorisation |
 
 On x86_64 Linux, macOS, and Windows the entire stack is compiled **twice**: once for the
 `generic` variant (OpenBLAS `DYNAMIC_ARCH=1`) and once for the `avx2` variant
