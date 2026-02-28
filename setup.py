@@ -408,6 +408,13 @@ def build_coin_or(dest_dir=None, extra_cxxflags=""):
             extra += [
                 f"--with-lapack-lflags=-L{lib_dir} -lopenblas",
             ]
+            if platform.system() == "Darwin":
+                # ClpMain.cpp calls openblas_set_num_threads() when CLP_USE_OPENBLAS=1.
+                # On macOS two-level namespace, the clp executable must link -lopenblas
+                # explicitly — transitive propagation via libClp.dylib is not enough.
+                # --with-lapack-lflags covers shared library dependencies but the
+                # executable link step needs LDFLAGS for direct symbol resolution.
+                extra += [f"LDFLAGS=-L{lib_dir} -lopenblas"]
         elif name == "Cbc":
             nauty_pthread = "" if platform.system() == "Windows" else " -lpthread"
             # Cbc's CbcSymmetry.hpp uses #include "nauty/nauty.h", so the
