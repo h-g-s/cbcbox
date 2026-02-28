@@ -28,6 +28,15 @@ or separate installation steps are needed.
   the built-in native Cholesky, making barrier substantially faster.
   Activate with `-barrier -cholesky UniversityOfFlorida` (see [barrier usage](#barrier-interior-point-solver)).
 
+## Performance (x86\_64)
+
+> *Auto-updated by CI after each successful [workflow run](../../actions/workflows/wheel.yml).
+> Single-threaded solve time — lower is better.*
+
+<!-- PERF_PLOT_START -->
+*No results yet — run the CI workflow to populate this section.*
+<!-- PERF_PLOT_END -->
+
 ## Build variants
 
 On **x86_64 Linux, macOS, and Windows**, the wheel ships two complete sets of binaries:
