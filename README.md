@@ -237,20 +237,17 @@ cbc_dist_avx2/      ← AVX2-optimised build (x86_64 Linux/macOS/Windows)
 │   ├── cbc           # CBC MIP solver binary  (cbc.exe on Windows)
 │   └── clp           # Clp LP solver binary   (clp.exe on Windows)
 ├── lib/
-│   ├── libCbc.a / libCbc.so            # CBC solver
-│   ├── libCbcSolver.a / libCbcSolver.so
-│   ├── libClp.a / libClp.so            # Clp LP solver
-│   ├── libCgl.a / libCgl.so            # Cut generation
-│   ├── libOsi.a / libOsi.so            # Solver interface
-│   ├── libOsiClp.a / libOsiClp.so      # Clp OSI binding
-│   ├── libOsiCbc.a / libOsiCbc.so      # CBC OSI binding (where available)
-│   ├── libCoinUtils.a / libCoinUtils.so
-│   ├── libamd.a                        # AMD sparse ordering (static only, generic only)
-│   ├── libsuitesparseconfig.a          # SuiteSparse config (static only, generic only)
-│   ├── libnauty.a                      # Nauty (static only, generic only)
-│   ├── libopenblas.a / libopenblas.so  # OpenBLAS BLAS/LAPACK
-│   ├── pkgconfig/                      # .pc files for all libraries
-│   └── <bundled runtime shared libs>   # Platform-specific — see below
+│   ├── libCbc.so / libCbc.dylib / libCbc.dll  # CBC solver
+│   ├── libCbcSolver.so ...
+│   ├── libClp.so ...                          # Clp LP solver
+│   ├── libCgl.so ...                          # Cut generation
+│   ├── libOsi.so ...                          # Solver interface
+│   ├── libOsiClp.so ...                       # Clp OSI binding
+│   ├── libOsiCbc.so ...                       # CBC OSI binding (where available)
+│   ├── libCoinUtils.so ...
+│   ├── libopenblas.so / .dylib / .dll         # OpenBLAS BLAS/LAPACK
+│   ├── pkgconfig/                             # .pc files for all libraries
+│   └── <bundled runtime shared libs>          # Platform-specific — see below
 └── include/
     ├── coin/      # COIN-OR headers (CoinUtils, Osi, Clp, Cgl, Cbc)
     ├── nauty/     # Nauty headers

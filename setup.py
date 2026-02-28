@@ -728,6 +728,23 @@ if _build_avx2 and os.path.isdir(DIST_DIR_AVX2):
     _bundle_dist(DIST_DIR_AVX2)
 
 
+def _remove_static_libs(dist_dir: str) -> None:
+    """Remove static (.a) and libtool (.la) files — not needed at runtime."""
+    lib_dir = os.path.join(dist_dir, "lib")
+    removed = []
+    for pattern in ("*.a", "*.la"):
+        for path in _glob.glob(os.path.join(lib_dir, pattern)):
+            os.remove(path)
+            removed.append(os.path.basename(path))
+    if removed:
+        print(f"[cbcbox] removed static libs from {lib_dir}: {', '.join(sorted(removed))}")
+
+
+_remove_static_libs(DIST_DIR)
+if _build_avx2 and os.path.isdir(DIST_DIR_AVX2):
+    _remove_static_libs(DIST_DIR_AVX2)
+
+
 # ── Package ───────────────────────────────────────────────────────────────────
 # Skip the wheel-packaging stage when CBCBOX_BUILD_ONLY=1 (CI compile jobs
 # that only need the pre-built binaries, not the final .whl).
