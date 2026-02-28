@@ -147,12 +147,8 @@ This build includes parallel branch-and-cut (`--enable-cbc-parallel`).
 Use `-threads=N` to distribute the search tree across N threads:
 
 ```bash
-cbc mymodel.mps -threads=4 -timem elapsed -solve -quit
+cbc mymodel.mps -threads=4 -solve -quit
 ```
-
-Use `-timem elapsed` when running parallel so that time limits and reported
-times reflect wall-clock seconds rather than CPU-time (which would be ~N× the
-wall time).
 
 #### Barrier (interior-point) solver
 
