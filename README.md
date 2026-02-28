@@ -1,28 +1,32 @@
 # cbcbox
 
-**cbcbox** is a Python wheel distribution of pre-built, self-contained binaries for the
+**cbcbox** is a high-performance, self-contained Python distribution of the
 [CBC](https://github.com/coin-or/Cbc) MILP solver (COIN-OR Branch and Cut),
-built from the latest master branch of the COIN-OR repositories.
+built from the latest COIN-OR master branch.
 
-All dynamic dependencies (OpenBLAS, libgfortran, etc.) are bundled inside the
-wheel — no system libraries or separate installation steps are needed.
+On x86_64 (Linux, macOS, Windows) the wheel ships both a **Haswell-optimised** binary
+(AVX2/FMA, full `-march=haswell` ISA) for maximum speed and a **generic** build with
+runtime CPU dispatch for compatibility with any x86_64 machine — selected automatically.
+All dynamic dependencies (OpenBLAS, libgfortran, etc.) are bundled; no system libraries
+or separate installation steps are needed.
 
 ### Highlights
 
+- **Haswell-optimised & generic builds** — on x86_64 Linux, macOS, and Windows the wheel
+  ships two complete solver stacks: a *Haswell* build (`-O3 -march=haswell`, OpenBLAS
+  AVX2/FMA kernel) for maximum throughput, and a *generic* build (`DYNAMIC_ARCH` runtime
+  dispatch) for compatibility with any x86_64 CPU. The best available variant is selected
+  automatically at import time (see [Build variants](#build-variants)).
+
 - **Parallel branch-and-cut** — built with `--enable-cbc-parallel`. Use `-threads=N` to
-  solve with multiple threads. CBC distributes the branch-and-bound tree across threads,
-  giving significant speedups on multi-core machines for hard MIP instances.
+  distribute the search tree across N threads, giving significant speedups on multi-core
+  machines for hard MIP instances.
 
 - **AMD fill-reducing ordering** — SuiteSparse AMD is compiled in, enabling the
   high-quality `UniversityOfFlorida` Cholesky factorization for Clp's barrier (interior
-  point) solver. Compared to the built-in native Cholesky, AMD reordering produces much
-  less fill-in on large sparse problems, making barrier substantially faster.
-  Activate it with `-barrier -cholesky UniversityOfFlorida` (see [barrier usage](#barrier-interior-point-solver) below).
-
-- **Optimised BLAS** — linked against OpenBLAS for fast dense linear algebra.
-  The generic build uses OpenBLAS `DYNAMIC_ARCH=1` (runtime CPU dispatch) for
-  maximum portability; an additional **AVX2-optimised build** is included on
-  x86_64 Linux, macOS, and Windows (see [Build variants](#build-variants) below).
+  point) solver. AMD reordering produces much less fill-in on large sparse problems than
+  the built-in native Cholesky, making barrier substantially faster.
+  Activate with `-barrier -cholesky UniversityOfFlorida` (see [barrier usage](#barrier-interior-point-solver)).
 
 ## Build variants
 
