@@ -381,8 +381,21 @@ def build_coin_or(dest_dir=None, extra_cxxflags=""):
         if name == "CoinUtils":
             # OpenBLAS provides both BLAS and LAPACK in one archive.
             # AMD provides fill-reducing ordering for sparse systems.
+            #
+            # On macOS, COINUTILS_HAS_LAPACK causes CoinDenseFactorization to
+            # call OpenBLAS's dgetrf_single, which uses aligned AVX2 loads
+            # (vmovdqa).  CoinDenseFactorization's elements_ buffer is allocated
+            # with plain new[] (8/16-byte aligned), causing SIGSEGV on the
+            # unaligned 32-byte AVX2 access.  Disabling LAPACK for CoinUtils
+            # makes it fall back to the built-in pure-C pivot factorization,
+            # which is correct and fast enough for the small dense bases
+            # encountered in practice (e.g. 36-row LP).  Clp still gets LAPACK
+            # via its own --with-lapack-lflags.
+            if platform.system() == "Darwin":
+                extra += ["--without-lapack"]
+            else:
+                extra += [f"--with-lapack-lflags=-L{lib_dir} -lopenblas"]
             extra += [
-                f"--with-lapack-lflags=-L{lib_dir} -lopenblas",
                 f"--with-amd-cflags=-I{amd_inc}",
                 f"--with-amd-lflags=-L{LIB_DIR} -lamd -lsuitesparseconfig",
             ]
