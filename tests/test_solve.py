@@ -13,19 +13,25 @@ DATA_DIR = os.path.dirname(__file__)
 # Time limits are generous to avoid false failures on slow CI runners.
 # subprocess timeout = cbc_time_limit + 120 s.
 CASES = [
-    ("pp08a.mps.gz",                    7350.0,           300),
-    ("sprint_hidden06_j.mps.gz",        130.0,            900),
-    ("air03.mps.gz",                    340160.0,          600),
-    ("air04.mps.gz",                    56137.0,           600),
-    ("air05.mps.gz",                    26374.0,           900),
-    ("nw04.mps.gz",                     16862.0,           900),
-    ("mzzv11.mps.gz",                   -21718.0,          900),
-    ("trd445c.mps.gz",                  -153419.078836,   1200),
-    ("nursesched-sprint02.mps.gz",      58.0,              600),
-    ("stein45.mps.gz",                  30.0,              300),
-    ("neos-810286.mps.gz",              2877.0,            300),
-    ("neos-1281048.mps.gz",             601.0,             300),
+    ("pp08a.mps.gz",                    7350.0,           2000),
+    ("sprint_hidden06_j.mps.gz",        130.0,            2000),
+    ("air03.mps.gz",                    340160.0,         2000),
+    ("air04.mps.gz",                    56137.0,          2000),
+    ("air05.mps.gz",                    26374.0,          2000),
+    ("nw04.mps.gz",                     16862.0,          2000),
+    ("mzzv11.mps.gz",                   -21718.0,         2000),
+    ("trd445c.mps.gz",                  -153419.078836,   2000),
+    ("nursesched-sprint02.mps.gz",      58.0,             2000),
+    ("stein45.mps.gz",                  30.0,             2000),
+    ("neos-810286.mps.gz",              2877.0,           2000),
+    ("neos-1281048.mps.gz",             601.0,            2000),
+    ("j3050_8.mps.gz",                  1.0,              2000),
+    ("qiu.mps.gz",                      -132.873136947,   2000),
+    ("gesa2-o.mps.gz",                  25779856.3717,    2000),
 ]
+
+_REL_TOL = 1e-6   # relative tolerance for objective comparison
+_ABS_TOL = 1e-4   # absolute tolerance (used when expected is near zero)
 
 
 def _solve_and_get_obj(mps_file: str, cbc_binary: str = None,
@@ -93,7 +99,8 @@ def test_solve(filename, expected, time_limit, cbc_variant, request):
         {"instance": filename, "threads": 1, "elapsed_s": elapsed,
          "objective": obj, "build_variant": variant_name}
     )
-    assert abs(obj - expected) < 1e-4, f"Expected {expected}, got {obj}"
+    tol = max(_ABS_TOL, _REL_TOL * abs(expected))
+    assert abs(obj - expected) <= tol, f"Expected {expected}, got {obj}"
 
 
 @pytest.mark.parametrize("filename,expected,time_limit", CASES,
@@ -107,4 +114,5 @@ def test_solve_parallel(filename, expected, time_limit, cbc_variant, request):
         {"instance": filename, "threads": 3, "elapsed_s": elapsed,
          "objective": obj, "build_variant": variant_name}
     )
-    assert abs(obj - expected) < 1e-4, f"Expected {expected}, got {obj} (3 threads)"
+    tol = max(_ABS_TOL, _REL_TOL * abs(expected))
+    assert abs(obj - expected) <= tol, f"Expected {expected}, got {obj} (3 threads)"

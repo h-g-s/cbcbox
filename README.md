@@ -339,7 +339,7 @@ installed wheel to verify correctness.
 
 ### Integration tests
 
-The test suite (`pytest`) solves twelve MIP instances and checks the optimal
+The test suite (`pytest`) solves fifteen MIP instances and checks the optimal
 objective values, in both single-threaded and parallel (3-thread) modes.
 On x86_64 Linux, macOS, and Windows **each test is run twice** — once against
 the `generic` binary and once against the `avx2` binary — and a side-by-side
@@ -347,18 +347,21 @@ performance comparison is recorded:
 
 | Instance | Expected optimal | Time limit |
 |---|---|---|
-| `pp08a.mps.gz` | 7 350 | 300 s |
-| `sprint_hidden06_j.mps.gz` | 130 | 900 s |
-| `air03.mps.gz` | 340 160 | 600 s |
-| `air04.mps.gz` | 56 137 | 600 s |
-| `air05.mps.gz` | 26 374 | 900 s |
-| `nw04.mps.gz` | 16 862 | 900 s |
-| `mzzv11.mps.gz` | −21 718 | 900 s |
-| `trd445c.mps.gz` | −153 419.078836 | 1200 s |
-| `nursesched-sprint02.mps.gz` | 58 | 600 s |
-| `stein45.mps.gz` | 30 | 300 s |
-| `neos-810286.mps.gz` | 2 877 | 300 s |
-| `neos-1281048.mps.gz` | 601 | 300 s |
+| `pp08a.mps.gz` | 7 350 | 2000 s |
+| `sprint_hidden06_j.mps.gz` | 130 | 2000 s |
+| `air03.mps.gz` | 340 160 | 2000 s |
+| `air04.mps.gz` | 56 137 | 2000 s |
+| `air05.mps.gz` | 26 374 | 2000 s |
+| `nw04.mps.gz` | 16 862 | 2000 s |
+| `mzzv11.mps.gz` | −21 718 | 2000 s |
+| `trd445c.mps.gz` | −153 419.078836 | 2000 s |
+| `nursesched-sprint02.mps.gz` | 58 | 2000 s |
+| `stein45.mps.gz` | 30 | 2000 s |
+| `neos-810286.mps.gz` | 2 877 | 2000 s |
+| `neos-1281048.mps.gz` | 601 | 2000 s |
+| `j3050_8.mps.gz` | 1 | 2000 s |
+| `qiu.mps.gz` | −132.873136947 | 2000 s |
+| `gesa2-o.mps.gz` | 25 779 856.3717 | 2000 s |
 
 Time limits are generous to avoid false failures on slow CI runners.
 
