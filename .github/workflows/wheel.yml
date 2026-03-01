@@ -278,6 +278,8 @@ jobs:
         with:
           name: cbc-dist-linux-x64-debug
           path: cbc_dist_debug.tar.gz
+
+  package-linux-x64:
     name: Package Linux x86_64 wheel
     needs: [compile-linux-x64-generic, compile-linux-x64-avx2, compile-linux-x64-debug]
     runs-on: ubuntu-latest
