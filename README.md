@@ -339,7 +339,7 @@ installed wheel to verify correctness.
 
 ### Integration tests
 
-The test suite (`pytest`) solves ten MIP instances and checks the optimal
+The test suite (`pytest`) solves eleven MIP instances and checks the optimal
 objective values, in both single-threaded and parallel (3-thread) modes.
 On x86_64 Linux, macOS, and Windows **each test is run twice** — once against
 the `generic` binary and once against the `avx2` binary — and a side-by-side
@@ -357,6 +357,7 @@ performance comparison is recorded:
 | `trd445c.mps.gz` | −153 419.078836 | 1200 s |
 | `nursesched-sprint02.mps.gz` | 58 | 600 s |
 | `stein45.mps.gz` | 30 | 300 s |
+| `neos-808214.mps.gz` | 5 | 300 s |
 
 Time limits are generous to avoid false failures on slow CI runners.
 

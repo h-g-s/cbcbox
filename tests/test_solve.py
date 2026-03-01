@@ -23,6 +23,7 @@ CASES = [
     ("trd445c.mps.gz",                  -153419.078836,   1200),
     ("nursesched-sprint02.mps.gz",      58.0,              600),
     ("stein45.mps.gz",                  30.0,              300),
+    ("neos-808214.mps.gz",              5.0,               300),
 ]
 
 
