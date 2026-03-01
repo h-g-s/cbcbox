@@ -41,7 +41,11 @@ def _print_build_info(dist_dir: str) -> None:
                + _glob.glob(os.path.join(lib_dir, "libopenblas*"))
         if not os.path.islink(p)
     )
-    variant  = "avx2" if dist_dir.endswith("_avx2") else "generic"
+    variant  = (
+        "avx2"  if dist_dir.endswith("_avx2")
+        else "debug" if dist_dir.endswith("_debug")
+        else "generic"
+    )
     print(f"[cbcbox] CBCBOX_BUILD={variant}")
     print(f"[cbcbox]   binary  : {cbc_bin}")
     print(f"[cbcbox]   lib dir : {lib_dir}")
@@ -50,9 +54,10 @@ def _print_build_info(dist_dir: str) -> None:
 
 
 def cbc_dist_dir() -> str:
-    pkg_dir  = os.path.abspath(os.path.dirname(__file__))
-    base_dir = os.path.join(pkg_dir, "cbc_dist")
-    avx2_dir = os.path.join(pkg_dir, "cbc_dist_avx2")
+    pkg_dir   = os.path.abspath(os.path.dirname(__file__))
+    base_dir  = os.path.join(pkg_dir, "cbc_dist")
+    avx2_dir  = os.path.join(pkg_dir, "cbc_dist_avx2")
+    debug_dir = os.path.join(pkg_dir, "cbc_dist_debug")
 
     override = os.environ.get("CBCBOX_BUILD", "").strip().lower()
     if override == "avx2":
@@ -62,11 +67,19 @@ def cbc_dist_dir() -> str:
                 "present in this installation (x86_64 Linux/macOS/Windows only)."
             )
         chosen = avx2_dir
+    elif override == "debug":
+        if not os.path.isdir(debug_dir):
+            raise RuntimeError(
+                "CBCBOX_BUILD=debug requested but the debug build is not "
+                "present in this installation."
+            )
+        chosen = debug_dir
     elif override == "generic":
         chosen = base_dir
     elif override:
         raise ValueError(
-            f"Unknown CBCBOX_BUILD value {override!r}. Use 'generic' or 'avx2'."
+            f"Unknown CBCBOX_BUILD value {override!r}. "
+            "Use 'generic', 'avx2', or 'debug'."
         )
     else:
         # Auto-select: prefer AVX2 when available and supported by the CPU.

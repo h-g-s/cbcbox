@@ -18,6 +18,11 @@ or separate installation steps are needed.
   dispatch) for compatibility with any x86_64 CPU. The best available variant is selected
   automatically at import time (see [Build variants](#build-variants)).
 
+- **Debug build with AddressSanitizer** — every wheel includes a `debug` variant compiled
+  with `-O1 -g -fsanitize=address` (Linux/macOS) or `-O1 -g` (Windows). Activate with
+  `CBCBOX_BUILD=debug` to diagnose memory errors and reproduce hard-to-find bugs with
+  clean stack traces (see [Debug build](#debug-build)).
+
 - **Parallel branch-and-cut** — built with `--enable-cbc-parallel`. Use `-threads=N` to
   distribute the search tree across N threads, giving significant speedups on multi-core
   machines for hard MIP instances.
@@ -61,6 +66,9 @@ CBCBOX_BUILD=generic cbc mymodel.mps -solve -quit
 
 # Force AVX2-optimised build (raises an error if not available)
 CBCBOX_BUILD=avx2 cbc mymodel.mps -solve -quit
+
+# Use debug build with AddressSanitizer (Linux/macOS) or -O1 -g (Windows)
+CBCBOX_BUILD=debug cbc mymodel.mps -solve -quit
 ```
 
 When `CBCBOX_BUILD` is set, a short summary of the selected build is printed to
@@ -73,8 +81,30 @@ stdout on every call — useful for tagging experiment results:
 [cbcbox]   libs    : libCbc.so.3, libClp.so.3, libopenblas.so.0
 ```
 
-> **Non-x86_64 platforms** (Linux aarch64, macOS arm64) ship only the `generic`
-> build. `CBCBOX_BUILD=avx2` will raise a `RuntimeError` on those platforms.
+> **Non-x86_64 platforms** (Linux aarch64, macOS arm64) ship `generic` and
+> `debug` builds.  `CBCBOX_BUILD=avx2` will raise a `RuntimeError` on those
+> platforms.
+
+### Debug build
+
+Every wheel includes a `debug` build compiled with `-O1 -g` and, on Linux and
+macOS, [AddressSanitizer](https://clang.llvm.org/docs/AddressSanitizer.html)
+(`-fsanitize=address -fno-omit-frame-pointer`).  Windows builds use `-O1 -g`
+only (MinGW does not support ASan).
+
+Use the debug build to reproduce and diagnose bugs: CBC will abort with a clear
+stack trace on memory errors instead of silently producing wrong results.
+
+```bash
+# Run with AddressSanitizer enabled (Linux/macOS)
+CBCBOX_BUILD=debug cbc problem.mps -solve -quit
+```
+
+```python
+import cbcbox, os
+os.environ["CBCBOX_BUILD"] = "debug"
+bin_path = cbcbox.cbc_bin_path()   # → .../cbc_dist_debug/bin/cbc
+```
 
 ## Supported platforms
 

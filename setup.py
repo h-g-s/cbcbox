@@ -36,10 +36,11 @@ cmdclass = {"bdist_wheel": genericpy_bdist_wheel}
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-THIS_DIR      = os.path.abspath(os.path.dirname(__file__))
-DIST_DIR      = os.path.join(THIS_DIR, "cbc_dist")
-DIST_DIR_AVX2 = os.path.join(THIS_DIR, "cbc_dist_avx2")
-LIB_DIR       = os.path.join(DIST_DIR, "lib")
+THIS_DIR       = os.path.abspath(os.path.dirname(__file__))
+DIST_DIR       = os.path.join(THIS_DIR, "cbc_dist")
+DIST_DIR_AVX2  = os.path.join(THIS_DIR, "cbc_dist_avx2")
+DIST_DIR_DEBUG = os.path.join(THIS_DIR, "cbc_dist_debug")
+LIB_DIR        = os.path.join(DIST_DIR, "lib")
 NPROC    = str(max(1, multiprocessing.cpu_count()))
 
 SUITESPARSE_TAG = "v7.12.2"
@@ -200,7 +201,7 @@ def _patch_cbc_thread_stack(cbc_src):
 
 # ── Build OpenBLAS (static, with Fortran/LAPACK) ─────────────────────────────
 
-def build_openblas(dest_dir, *, dynamic_arch=False, target=None):
+def build_openblas(dest_dir, *, dynamic_arch=False, target=None, extra_cflags=""):
     src = clone_if_missing(
         "OpenBLAS",
         "https://github.com/xianyi/OpenBLAS.git",
@@ -226,6 +227,10 @@ def build_openblas(dest_dir, *, dynamic_arch=False, target=None):
         # is never needed.
         make_vars.append("DYNAMIC_ARCH=1")
         make_vars.append("NO_AVX512=1")
+
+    if extra_cflags:
+        make_vars.append(f"CFLAGS={extra_cflags}")
+        make_vars.append(f"FFLAGS={extra_cflags}")
 
     # Build static + shared libs (libs target skips test suite).
     # Building shared is required on all platforms so configure scripts
@@ -315,12 +320,16 @@ def build_nauty(extra_cflags=""):
 
 # ── Build COIN-OR projects ────────────────────────────────────────────────────
 
-def build_coin_or(dest_dir=None, extra_cxxflags=""):
+def build_coin_or(dest_dir=None, extra_cxxflags="", extra_ldflags=""):
     """Build the full COIN-OR stack and install into *dest_dir*.
 
     *extra_cxxflags* is appended to CXXFLAGS and can be used to enable
     architecture-specific optimisations (e.g. "-O3 -march=haswell -DCOIN_AVX2=4"
-    for the Haswell-optimised build).
+    for the Haswell-optimised build) or debug flags.
+
+    *extra_ldflags* is appended to LDFLAGS for all configure calls.  On macOS,
+    the Clp project already gets "-L{lib_dir} -lopenblas"; extra_ldflags is
+    merged into that rather than passed separately.
     """
     if dest_dir is None:
         dest_dir = DIST_DIR
@@ -366,9 +375,14 @@ def build_coin_or(dest_dir=None, extra_cxxflags=""):
         # lib*.dll (MinGW convention) rather than cyg*.dll (Cygwin convention).
         common += ["--build=x86_64-w64-mingw32", "--host=x86_64-w64-mingw32"]
 
-    # Use a distinct build sub-directory per variant so that the generic and
-    # AVX2 builds can coexist in the same cloned source tree.
-    bld_suffix = "_build" if dest_dir == DIST_DIR else "_build_avx2"
+    # Use a distinct build sub-directory per variant so that generic,
+    # AVX2, and debug builds can coexist in the same cloned source tree.
+    if dest_dir == DIST_DIR:
+        bld_suffix = "_build"
+    elif dest_dir == DIST_DIR_AVX2:
+        bld_suffix = "_build_avx2"
+    else:
+        bld_suffix = "_build_debug"
 
     for name, url in COIN_REPOS:
         src = clone_if_missing(name, url)
@@ -378,6 +392,7 @@ def build_coin_or(dest_dir=None, extra_cxxflags=""):
         os.makedirs(bld, exist_ok=True)
 
         extra = []
+        ldflags_in_extra = False
         if name == "CoinUtils":
             # OpenBLAS provides both BLAS and LAPACK in one archive.
             # AMD provides fill-reducing ordering for sparse systems.
@@ -414,7 +429,11 @@ def build_coin_or(dest_dir=None, extra_cxxflags=""):
                 # explicitly — transitive propagation via libClp.dylib is not enough.
                 # --with-lapack-lflags covers shared library dependencies but the
                 # executable link step needs LDFLAGS for direct symbol resolution.
-                extra += [f"LDFLAGS=-L{lib_dir} -lopenblas"]
+                darwin_ldflags = f"-L{lib_dir} -lopenblas"
+                if extra_ldflags:
+                    darwin_ldflags += f" {extra_ldflags}"
+                extra += [f"LDFLAGS={darwin_ldflags}"]
+                ldflags_in_extra = True
         elif name == "Cbc":
             nauty_pthread = "" if platform.system() == "Windows" else " -lpthread"
             # Cbc's CbcSymmetry.hpp uses #include "nauty/nauty.h", so the
@@ -454,7 +473,10 @@ def build_coin_or(dest_dir=None, extra_cxxflags=""):
         if openblas_flag:
             cxxflags_parts.append(openblas_flag)
         cxxflags = " ".join(cxxflags_parts)
-        run(configure, *common, *extra, f"CXXFLAGS={cxxflags}", cwd=bld, env=env)
+        configure_args = [configure, *common, *extra, f"CXXFLAGS={cxxflags}"]
+        if extra_ldflags and not ldflags_in_extra:
+            configure_args.append(f"LDFLAGS={extra_ldflags}")
+        run(*configure_args, cwd=bld, env=env)
         run("make", "-j", NPROC, cwd=bld)
         run("make", "install", cwd=bld)
 
@@ -657,22 +679,34 @@ def copy_win_dlls_to_lib(dist_dir=None):
 _cbc_exe = "cbc.exe" if platform.system() == "Windows" else "cbc"
 
 # CBCBOX_BUILD_VARIANT controls which variants are compiled (used by CI to run
-# generic and AVX2 builds in parallel jobs):
-#   unset / "all"  — build both generic and AVX2 (default, local behaviour)
+# builds in parallel jobs):
+#   unset / "all"  — build generic and AVX2 (default, local behaviour)
 #   "generic"      — build only the generic variant
-#   "avx2"         — build only the AVX2 variant
+#   "avx2"         — build only the AVX2 variant (x86_64 only)
+#   "debug"        — build only the debug variant (all platforms)
+#                    Linux/macOS: -O1 -g -fsanitize=address; Windows: -O1 -g
 # In "avx2" mode AMD and nauty are still compiled (as link-time static deps
 # for the COIN-OR AVX2 build) but with Haswell-optimised flags.
 #
 # CBCBOX_BUILD_ONLY=1 — skip the wheel-packaging stage (used by CI compile
 # jobs that only need the binaries, not the final .whl).
 _build_variant = os.environ.get("CBCBOX_BUILD_VARIANT", "")
-_build_generic = _build_variant != "avx2"
-_build_avx2    = _is_x86_64() and _build_variant != "generic"
+_build_generic = _build_variant not in ("avx2", "debug")
+_build_avx2    = _is_x86_64() and _build_variant not in ("generic", "debug")
+_build_debug   = _build_variant == "debug"
 
 # Flags applied to all C/C++ code in the AVX2 variant, including the static
 # AMD and nauty libraries that are ultimately linked into COIN-OR .so/.dylib.
 _AVX2_CFLAGS = "-O3 -march=haswell"
+
+# Debug build flags: -O1 -g with AddressSanitizer on Linux/macOS.
+# Windows/MinGW does not support ASan; debug builds there get -O1 -g only.
+if platform.system() == "Windows":
+    _DEBUG_CFLAGS  = "-O1 -g -fno-omit-frame-pointer"
+    _DEBUG_LDFLAGS = ""
+else:
+    _DEBUG_CFLAGS  = "-O1 -g -fsanitize=address -fno-omit-frame-pointer"
+    _DEBUG_LDFLAGS = "-fsanitize=address"
 
 if _build_generic and not os.path.exists(os.path.join(DIST_DIR, "bin", _cbc_exe)):
     build_openblas(DIST_DIR, dynamic_arch=True)
@@ -684,7 +718,7 @@ if _build_generic and not os.path.exists(os.path.join(DIST_DIR, "bin", _cbc_exe)
 # In avx2-only mode AMD and nauty are still needed as link-time static deps for
 # the COIN-OR AVX2 build; compile them with Haswell flags so they are fully
 # optimised and end up embedded in the AVX2 COIN-OR shared libraries.
-if not _build_generic and not os.path.exists(os.path.join(LIB_DIR, "libamd.a")):
+if not _build_generic and not _build_debug and not os.path.exists(os.path.join(LIB_DIR, "libamd.a")):
     build_amd(extra_cflags=_AVX2_CFLAGS)
     build_nauty(extra_cflags=_AVX2_CFLAGS)
 
@@ -696,6 +730,18 @@ if _build_avx2 and not os.path.exists(os.path.join(DIST_DIR_AVX2, "bin", _cbc_ex
     # The Haswell advantage comes from -march=haswell on the COIN-OR stack.
     build_openblas(DIST_DIR_AVX2, dynamic_arch=True)
     build_coin_or(DIST_DIR_AVX2, extra_cxxflags=f"{_AVX2_CFLAGS} -DCOIN_AVX2=4")
+
+# Debug build: OpenBLAS is built with -O1 -g but WITHOUT ASan to avoid false
+# positives from BLAS kernels; COIN-OR gets full debug flags + ASan.
+# AMD/nauty are static link-time deps shared with the base dist.
+if _build_debug and not os.path.exists(os.path.join(DIST_DIR_DEBUG, "bin", _cbc_exe)):
+    build_openblas(DIST_DIR_DEBUG, dynamic_arch=True, extra_cflags="-O1 -g")
+    if not os.path.exists(os.path.join(LIB_DIR, "libamd.a")):
+        build_amd()
+        build_nauty()
+    build_coin_or(DIST_DIR_DEBUG,
+                  extra_cxxflags=_DEBUG_CFLAGS,
+                  extra_ldflags=_DEBUG_LDFLAGS)
 
 
 def _bundle_dist(dist_dir):
@@ -726,6 +772,8 @@ def _bundle_dist(dist_dir):
 _bundle_dist(DIST_DIR)
 if _build_avx2 and os.path.isdir(DIST_DIR_AVX2):
     _bundle_dist(DIST_DIR_AVX2)
+if _build_debug and os.path.isdir(DIST_DIR_DEBUG):
+    _bundle_dist(DIST_DIR_DEBUG)
 
 
 def _remove_static_libs(dist_dir: str) -> None:
@@ -743,6 +791,8 @@ def _remove_static_libs(dist_dir: str) -> None:
 _remove_static_libs(DIST_DIR)
 if _build_avx2 and os.path.isdir(DIST_DIR_AVX2):
     _remove_static_libs(DIST_DIR_AVX2)
+if _build_debug and os.path.isdir(DIST_DIR_DEBUG):
+    _remove_static_libs(DIST_DIR_DEBUG)
 
 
 # ── Package ───────────────────────────────────────────────────────────────────
@@ -781,6 +831,13 @@ Built with:
             shutil.copytree(DIST_DIR_AVX2, os.path.join(_pkg_dir, dist_name_avx2),
                             dirs_exist_ok=True)
             package_data_patterns.append(f"{dist_name_avx2}/**")
+
+        # Include the debug build when present (all platforms).
+        dist_name_debug = "cbc_dist_debug"
+        if os.path.isdir(DIST_DIR_DEBUG):
+            shutil.copytree(DIST_DIR_DEBUG, os.path.join(_pkg_dir, dist_name_debug),
+                            dirs_exist_ok=True)
+            package_data_patterns.append(f"{dist_name_debug}/**")
 
         for fname in ["__init__.py", "__main__.py"]:
             shutil.copy2(os.path.join(THIS_DIR, "src", fname), os.path.join(_pkg_dir, fname))
