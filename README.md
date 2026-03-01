@@ -337,7 +337,7 @@ installed wheel to verify correctness.
 
 ### Integration tests
 
-The test suite (`pytest`) solves six MIP instances and checks the optimal
+The test suite (`pytest`) solves ten MIP instances and checks the optimal
 objective values, in both single-threaded and parallel (3-thread) modes.
 On x86_64 Linux, macOS, and Windows **each test is run twice** — once against
 the `generic` binary and once against the `avx2` binary — and a side-by-side
@@ -353,6 +353,8 @@ performance comparison is recorded:
 | `nw04.mps.gz` | 16 862 | 900 s |
 | `mzzv11.mps.gz` | −21 718 | 900 s |
 | `trd445c.mps.gz` | −153 419.078836 | 1200 s |
+| `nursesched-sprint02.mps.gz` | 58 | 600 s |
+| `stein45.mps.gz` | 30 | 300 s |
 
 Time limits are generous to avoid false failures on slow CI runners.
 
@@ -476,6 +478,36 @@ Geometric mean solve time (seconds) across all test instances.
 
 
 <!-- PERF_RESULTS_END -->
+
+## NAQ — Never Asked Questions
+
+### Why not benchmark on the full [MIPLIB 2017](https://miplib.zib.de/) library?
+
+Several practical constraints shape the benchmark set:
+
+1. **CI time limits.**  GitHub Actions enforces a 6-hour wall-clock limit per
+   job.  The full MIPLIB 2017 collection contains ~1 065 instances, many of
+   which take hours even on fast hardware.  Including all of them would make
+   every CI run time out before producing any useful measurements.
+
+2. **Comparing apples to apples requires instances solved to optimality.**  If
+   some instances are only solved within a time limit (i.e., a gap > 0 %), a
+   meaningful performance comparison must account for both solve time *and*
+   solution quality simultaneously.  This greatly complicates analysis and
+   makes plots harder to interpret.  Restricting to instances that CBC reliably
+   solves to proven optimality keeps the comparison clean: a single elapsed-time
+   number per instance is all that is needed.
+
+3. **The instance set is intentionally biased toward set packing / covering /
+   partitioning structure.**  Most instances in the benchmark (`pp08a`,
+   `sprint_hidden06_j`, `nw04`, `mzzv11`, `nursesched-sprint02`, `air0x`,
+   `trd445c`) contain large blocks of set packing, covering, or partitioning
+   constraints.  This structure arises naturally in applications such as crew
+   scheduling, nurse scheduling, vehicle routing, and cutting stock —
+   exactly the domain where [column generation](https://en.wikipedia.org/wiki/Column_generation)
+   is most valuable.  Since cbcbox is primarily intended as the MIP sub-solver
+   in branch-and-price / column generation frameworks, the benchmark focuses
+   on this problem class rather than providing a general-purpose solver survey.
 
 ## License
 

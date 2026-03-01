@@ -13,14 +13,16 @@ DATA_DIR = os.path.dirname(__file__)
 # Time limits are generous to avoid false failures on slow CI runners.
 # subprocess timeout = cbc_time_limit + 120 s.
 CASES = [
-    ("pp08a.mps.gz",              7350.0,           300),
-    ("sprint_hidden06_j.mps.gz",  130.0,            900),
-    ("air03.mps.gz",              340160.0,          600),
-    ("air04.mps.gz",              56137.0,           600),
-    ("air05.mps.gz",              26374.0,           900),
-    ("nw04.mps.gz",               16862.0,           900),
-    ("mzzv11.mps.gz",             -21718.0,          900),
-    ("trd445c.mps.gz",            -153419.078836,   1200),
+    ("pp08a.mps.gz",                    7350.0,           300),
+    ("sprint_hidden06_j.mps.gz",        130.0,            900),
+    ("air03.mps.gz",                    340160.0,          600),
+    ("air04.mps.gz",                    56137.0,           600),
+    ("air05.mps.gz",                    26374.0,           900),
+    ("nw04.mps.gz",                     16862.0,           900),
+    ("mzzv11.mps.gz",                   -21718.0,          900),
+    ("trd445c.mps.gz",                  -153419.078836,   1200),
+    ("nursesched-sprint02.mps.gz",      58.0,              600),
+    ("stein45.mps.gz",                  30.0,              300),
 ]
 
 
