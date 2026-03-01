@@ -35,9 +35,11 @@ or separate installation steps are needed.
 
 <!-- PERF_PLOT_START -->
 
-![CBC solve time — generic vs AVX2/Haswell](docs/perf_avx2_speedup.png)
+![CBC solve time — generic vs AVX2/Haswell (Linux x86_64)](https://raw.githubusercontent.com/h-g-s/cbcbox/master/docs/perf_avx2_speedup.png)
 
-*Single-threaded solve time across benchmark instances. Speedup factor shown above each pair. Lower is better.*
+*Single-threaded solve time across benchmark instances on Linux x86_64. Speedup factor shown above each pair. Lower is better.*
+
+See also: [Windows AMD64 + macOS x86\_64 summary](https://raw.githubusercontent.com/h-g-s/cbcbox/master/docs/perf_avx2_other.png)
 
 <!-- PERF_PLOT_END -->
 
