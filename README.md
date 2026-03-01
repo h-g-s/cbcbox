@@ -505,9 +505,8 @@ Several practical constraints shape the benchmark set:
    constraints.  This structure arises naturally in applications such as crew
    scheduling, nurse scheduling, vehicle routing, and cutting stock —
    exactly the domain where [column generation](https://en.wikipedia.org/wiki/Column_generation)
-   is most valuable.  Since cbcbox is primarily intended as the MIP sub-solver
-   in branch-and-price / column generation frameworks, the benchmark focuses
-   on this problem class rather than providing a general-purpose solver survey.
+   is most valuable.  Since the benchmark focuses on this problem class rather
+   than providing a general-purpose solver survey, it is a specially interesting use case.
 
 ## License
 
