@@ -42,33 +42,9 @@ jobs:
           name: cbc-dist-linux-arm64-generic
           path: cbc_dist_generic.tar.gz
 
-  compile-linux-arm64-debug:
-    name: Compile Linux ARM64 debug
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build debug binary (manylinux2014_aarch64)
-        run: |
-          docker run --rm \
-            -v "$PWD:/project" \
-            -e CBCBOX_BUILD_VARIANT=debug \
-            -e CBCBOX_BUILD_ONLY=1 \
-            quay.io/pypa/manylinux2014_aarch64 \
-            bash -c 'export PATH=/opt/python/cp313-cp313/bin:$PATH &&
-                     yum install -y gcc-gfortran &&
-                     pip install setuptools wheel patchelf &&
-                     cd /project &&
-                     python setup.py build_ext'
-          sudo chown -R "$USER:$USER" cbc_dist_debug/ 2>/dev/null || true
-          tar -czf cbc_dist_debug.tar.gz cbc_dist_debug/
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cbc-dist-linux-arm64-debug
-          path: cbc_dist_debug.tar.gz
-
   package-linux-arm64:
     name: Package Linux ARM64 wheel
-    needs: [compile-linux-arm64-generic, compile-linux-arm64-debug]
+    needs: [compile-linux-arm64-generic]
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
@@ -77,11 +53,6 @@ jobs:
           name: cbc-dist-linux-arm64-generic
           path: .
       - run: tar -xzf cbc_dist_generic.tar.gz
-      - uses: actions/download-artifact@v4
-        with:
-          name: cbc-dist-linux-arm64-debug
-          path: .
-      - run: tar -xzf cbc_dist_debug.tar.gz
       - name: Build and test wheel (compilation skipped — binaries pre-built)
         uses: pypa/cibuildwheel@v3.3.1
         env:
@@ -139,29 +110,9 @@ jobs:
           name: cbc-dist-macos-arm64-generic
           path: cbc_dist_generic.tar.gz
 
-  compile-macos-arm64-debug:
-    name: Compile macOS ARM64 debug
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install gfortran if needed
-        run: which gfortran || brew install gcc
-      - name: Install Python build deps
-        run: pip install setuptools wheel
-      - name: Build debug binary
-        env:
-          CBCBOX_BUILD_VARIANT: debug
-          CBCBOX_BUILD_ONLY: "1"
-        run: python setup.py build_ext
-      - run: tar -czf cbc_dist_debug.tar.gz cbc_dist_debug/
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cbc-dist-macos-arm64-debug
-          path: cbc_dist_debug.tar.gz
-
   package-macos-arm64:
     name: Package macOS ARM64 wheel
-    needs: [compile-macos-arm64-generic, compile-macos-arm64-debug]
+    needs: [compile-macos-arm64-generic]
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -170,11 +121,6 @@ jobs:
           name: cbc-dist-macos-arm64-generic
           path: .
       - run: tar -xzf cbc_dist_generic.tar.gz
-      - uses: actions/download-artifact@v4
-        with:
-          name: cbc-dist-macos-arm64-debug
-          path: .
-      - run: tar -xzf cbc_dist_debug.tar.gz
       - name: Build and test wheel (compilation skipped — binaries pre-built)
         uses: pypa/cibuildwheel@v3.3.1
         env:
@@ -255,33 +201,9 @@ jobs:
           name: cbc-dist-linux-x64-avx2
           path: cbc_dist_avx2.tar.gz
 
-  compile-linux-x64-debug:
-    name: Compile Linux x86_64 debug
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build debug binary (manylinux2014)
-        run: |
-          docker run --rm \
-            -v "$PWD:/project" \
-            -e CBCBOX_BUILD_VARIANT=debug \
-            -e CBCBOX_BUILD_ONLY=1 \
-            quay.io/pypa/manylinux2014_x86_64 \
-            bash -c 'export PATH=/opt/python/cp313-cp313/bin:$PATH &&
-                     yum install -y gcc-gfortran &&
-                     pip install setuptools wheel patchelf &&
-                     cd /project &&
-                     python setup.py build_ext'
-          sudo chown -R "$USER:$USER" cbc_dist_debug/ 2>/dev/null || true
-          tar -czf cbc_dist_debug.tar.gz cbc_dist_debug/
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cbc-dist-linux-x64-debug
-          path: cbc_dist_debug.tar.gz
-
   package-linux-x64:
     name: Package Linux x86_64 wheel
-    needs: [compile-linux-x64-generic, compile-linux-x64-avx2, compile-linux-x64-debug]
+    needs: [compile-linux-x64-generic, compile-linux-x64-avx2]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -295,11 +217,6 @@ jobs:
           name: cbc-dist-linux-x64-avx2
           path: .
       - run: tar -xzf cbc_dist_avx2.tar.gz
-      - uses: actions/download-artifact@v4
-        with:
-          name: cbc-dist-linux-x64-debug
-          path: .
-      - run: tar -xzf cbc_dist_debug.tar.gz
       - name: Build and test wheel (compilation skipped — binaries pre-built)
         uses: pypa/cibuildwheel@v3.3.1
         env:
@@ -377,29 +294,9 @@ jobs:
           name: cbc-dist-macos-intel-avx2
           path: cbc_dist_avx2.tar.gz
 
-  compile-macos-intel-debug:
-    name: Compile macOS Intel debug
-    runs-on: macos-15-intel
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install gfortran if needed
-        run: which gfortran || brew install gcc
-      - name: Install Python build deps
-        run: pip install setuptools wheel
-      - name: Build debug binary
-        env:
-          CBCBOX_BUILD_VARIANT: debug
-          CBCBOX_BUILD_ONLY: "1"
-        run: python setup.py build_ext
-      - run: tar -czf cbc_dist_debug.tar.gz cbc_dist_debug/
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cbc-dist-macos-intel-debug
-          path: cbc_dist_debug.tar.gz
-
   package-macos-intel:
     name: Package macOS Intel wheel
-    needs: [compile-macos-intel-generic, compile-macos-intel-avx2, compile-macos-intel-debug]
+    needs: [compile-macos-intel-generic, compile-macos-intel-avx2]
     runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
@@ -413,11 +310,6 @@ jobs:
           name: cbc-dist-macos-intel-avx2
           path: .
       - run: tar -xzf cbc_dist_avx2.tar.gz
-      - uses: actions/download-artifact@v4
-        with:
-          name: cbc-dist-macos-intel-debug
-          path: .
-      - run: tar -xzf cbc_dist_debug.tar.gz
       - name: Build and test wheel (compilation skipped — binaries pre-built)
         uses: pypa/cibuildwheel@v3.3.1
         env:
@@ -503,37 +395,9 @@ jobs:
           name: cbc-dist-windows-avx2
           path: cbc_dist_avx2.tar.gz
 
-  compile-windows-debug:
-    name: Compile Windows debug
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up MSYS2 toolchain
-        shell: C:\msys64\usr\bin\bash.exe -l {0}
-        run: |
-          pacman -Sy --noconfirm
-          pacman -S --needed --noconfirm \
-            mingw-w64-x86_64-gcc \
-            mingw-w64-x86_64-gcc-fortran \
-            make \
-            autoconf automake libtool pkg-config
-      - name: Install Python build deps
-        run: pip install setuptools wheel
-      - name: Build debug binary (no ASan on Windows/MinGW — -O1 -g only)
-        env:
-          CBCBOX_BUILD_VARIANT: debug
-          CBCBOX_BUILD_ONLY: "1"
-        run: python setup.py build_ext
-      - run: tar -czf cbc_dist_debug.tar.gz cbc_dist_debug/
-        shell: bash
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cbc-dist-windows-debug
-          path: cbc_dist_debug.tar.gz
-
   package-windows:
     name: Package Windows wheel
-    needs: [compile-windows-generic, compile-windows-avx2, compile-windows-debug]
+    needs: [compile-windows-generic, compile-windows-avx2]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -557,12 +421,6 @@ jobs:
           name: cbc-dist-windows-avx2
           path: .
       - run: tar -xzf cbc_dist_avx2.tar.gz
-        shell: bash
-      - uses: actions/download-artifact@v4
-        with:
-          name: cbc-dist-windows-debug
-          path: .
-      - run: tar -xzf cbc_dist_debug.tar.gz
         shell: bash
       - name: Build and test wheel (compilation skipped — binaries pre-built)
         uses: pypa/cibuildwheel@v3.3.1
@@ -635,7 +493,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add README.md docs/
           git diff --staged --quiet && echo "README unchanged" || \
-            (git commit -m "docs: update performance results [skip ci]" && git push)
+            (git commit -m "docs: update performance results [skip ci]" && \
+             git pull --rebase origin master && git push)
 
   # ── Publish ───────────────────────────────────────────────────────────────────
 

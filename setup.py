@@ -833,13 +833,6 @@ Built with:
                             dirs_exist_ok=True)
             package_data_patterns.append(f"{dist_name_avx2}/**")
 
-        # Include the debug build when present (all platforms).
-        dist_name_debug = "cbc_dist_debug"
-        if os.path.isdir(DIST_DIR_DEBUG):
-            shutil.copytree(DIST_DIR_DEBUG, os.path.join(_pkg_dir, dist_name_debug),
-                            dirs_exist_ok=True)
-            package_data_patterns.append(f"{dist_name_debug}/**")
-
         for fname in ["__init__.py", "__main__.py"]:
             shutil.copy2(os.path.join(THIS_DIR, "src", fname), os.path.join(_pkg_dir, fname))
 
