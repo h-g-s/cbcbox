@@ -18,10 +18,10 @@ or separate installation steps are needed.
   dispatch) for compatibility with any x86_64 CPU. The best available variant is selected
   automatically at import time (see [Build variants](#build-variants)).
 
-- **Debug build with AddressSanitizer** — every wheel includes a `debug` variant compiled
-  with `-O1 -g -fsanitize=address` (Linux/macOS) or `-O1 -g` (Windows). Activate with
-  `CBCBOX_BUILD=debug` to diagnose memory errors and reproduce hard-to-find bugs with
-  clean stack traces (see [Debug build](#debug-build)).
+- **Debug build** — every wheel includes a `debug` variant compiled with `-O1 -g`
+  (plus [AddressSanitizer](https://clang.llvm.org/docs/AddressSanitizer.html) on macOS). Activate with
+  `CBCBOX_BUILD=debug` to diagnose hard-to-find bugs with clean stack traces
+  (see [Debug build](#debug-build)).
 
 - **Parallel branch-and-cut** — built with `--enable-cbc-parallel`. Use `-threads=N` to
   distribute the search tree across N threads, giving significant speedups on multi-core
@@ -87,16 +87,18 @@ stdout on every call — useful for tagging experiment results:
 
 ### Debug build
 
-Every wheel includes a `debug` build compiled with `-O1 -g` and, on Linux and
-macOS, [AddressSanitizer](https://clang.llvm.org/docs/AddressSanitizer.html)
-(`-fsanitize=address -fno-omit-frame-pointer`).  Windows builds use `-O1 -g`
-only (MinGW does not support ASan).
+Every wheel includes a `debug` build compiled with `-O1 -g -fno-omit-frame-pointer`.
+On macOS, [AddressSanitizer](https://clang.llvm.org/docs/AddressSanitizer.html)
+(`-fsanitize=address`) is also enabled.  Linux manylinux containers do not
+reliably provide `libasan`, so ASan is omitted there; Windows/MinGW does not
+support ASan either.
 
-Use the debug build to reproduce and diagnose bugs: CBC will abort with a clear
-stack trace on memory errors instead of silently producing wrong results.
+Use the debug build to reproduce and diagnose bugs: on macOS CBC will abort with
+a clear stack trace on memory errors; on all platforms reduced optimisation and
+full debug symbols make stack traces from crashes much more readable.
 
 ```bash
-# Run with AddressSanitizer enabled (Linux/macOS)
+# Run with debug symbols (-O1 -g) — ASan also active on macOS
 CBCBOX_BUILD=debug cbc problem.mps -solve -quit
 ```
 

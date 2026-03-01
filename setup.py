@@ -699,23 +699,14 @@ _build_debug   = _build_variant == "debug"
 # AMD and nauty libraries that are ultimately linked into COIN-OR .so/.dylib.
 _AVX2_CFLAGS = "-O3 -march=haswell"
 
-# Debug build flags: -O1 -g with AddressSanitizer on Linux/macOS.
-# Windows/MinGW does not support ASan; debug builds there get -O1 -g only.
-# On Linux, _DEBUG_LDFLAGS is intentionally left empty: autoconf configure
-# tests invoke the *C* compiler with LDFLAGS, and libasan.so is not always
-# available in manylinux containers.  Putting -fsanitize=address only in
-# CXXFLAGS is sufficient — libtool invokes g++ as the linker driver for C++
-# shared libraries, and g++ automatically links libasan when it sees the flag
-# in the argument list.  macOS Clang resolves ASan from Xcode/CLT and works
-# fine with -fsanitize=address in LDFLAGS.
-if platform.system() == "Windows":
-    _DEBUG_CFLAGS  = "-O1 -g -fno-omit-frame-pointer"
-    _DEBUG_LDFLAGS = ""
-elif platform.system() == "Darwin":
+# Debug build flags: -O1 -g with AddressSanitizer on macOS only.
+# Linux manylinux containers do not reliably provide libasan, so ASan is
+# omitted there.  Windows/MinGW does not support ASan either.
+if platform.system() == "Darwin":
     _DEBUG_CFLAGS  = "-O1 -g -fsanitize=address -fno-omit-frame-pointer"
     _DEBUG_LDFLAGS = "-fsanitize=address"
-else:  # Linux
-    _DEBUG_CFLAGS  = "-O1 -g -fsanitize=address -fno-omit-frame-pointer"
+else:  # Linux and Windows
+    _DEBUG_CFLAGS  = "-O1 -g -fno-omit-frame-pointer"
     _DEBUG_LDFLAGS = ""
 
 if _build_generic and not os.path.exists(os.path.join(DIST_DIR, "bin", _cbc_exe)):
