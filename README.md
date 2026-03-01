@@ -5,7 +5,7 @@
 built from the latest COIN-OR master branch.
 
 On x86_64 (Linux, macOS, Windows) the wheel ships both a **[Haswell](https://en.wikipedia.org/wiki/Haswell_(microarchitecture))-optimised** binary
-([AVX2](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions)/FMA, full `-march=haswell` ISA) for maximum speed and a **generic** build with
+([AVX2](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions)/[FMA](https://en.wikipedia.org/wiki/FMA_instruction_set)) for maximum speed and a **generic** build with
 runtime CPU dispatch for compatibility with any x86_64 machine — selected automatically.
 All dynamic dependencies ([OpenBLAS](https://github.com/OpenMathLib/OpenBLAS), libgfortran, etc.) are bundled; no system libraries
 or separate installation steps are needed.
@@ -13,15 +13,10 @@ or separate installation steps are needed.
 ### Highlights
 
 - **Haswell-optimised & generic builds** — on x86_64 Linux, macOS, and Windows the wheel
-  ships two complete solver stacks: a *Haswell* build (`-O3 -march=haswell`, OpenBLAS
-  AVX2/FMA kernel) for maximum throughput, and a *generic* build (`DYNAMIC_ARCH` runtime
-  dispatch) for compatibility with any x86_64 CPU. The best available variant is selected
+  ships two complete solver stacks: a *Haswell* build (OpenBLAS AVX2/FMA kernel) for
+  maximum throughput, and a *generic* build (`DYNAMIC_ARCH` runtime dispatch) for
+  compatibility with any x86_64 CPU. The best available variant is selected
   automatically at import time (see [Build variants](#build-variants)).
-
-- **Debug build** — every wheel includes a `debug` variant compiled with `-O1 -g`
-  (plus [AddressSanitizer](https://clang.llvm.org/docs/AddressSanitizer.html) on macOS). Activate with
-  `CBCBOX_BUILD=debug` to diagnose hard-to-find bugs with clean stack traces
-  (see [Debug build](#debug-build)).
 
 - **Parallel branch-and-cut** — built with `--enable-cbc-parallel`. Use `-threads=N` to
   distribute the search tree across N threads, giving significant speedups on multi-core
@@ -31,7 +26,7 @@ or separate installation steps are needed.
   high-quality `UniversityOfFlorida` Cholesky factorization for Clp's barrier (interior
   point) solver. AMD reordering produces much less fill-in on large sparse problems than
   the built-in native Cholesky, making barrier substantially faster.
-  Activate with `-barrier -cholesky UniversityOfFlorida` (see [barrier usage](#barrier-interior-point-solver)).
+  Activate with `-cholesky UniversityOfFlorida -barrier` (see [barrier usage](#barrier-interior-point-solver)).
 
 ## Performance (x86\_64)
 
@@ -66,9 +61,6 @@ CBCBOX_BUILD=generic cbc mymodel.mps -solve -quit
 
 # Force AVX2-optimised build (raises an error if not available)
 CBCBOX_BUILD=avx2 cbc mymodel.mps -solve -quit
-
-# Use debug build with AddressSanitizer (Linux/macOS) or -O1 -g (Windows)
-CBCBOX_BUILD=debug cbc mymodel.mps -solve -quit
 ```
 
 When `CBCBOX_BUILD` is set, a short summary of the selected build is printed to
@@ -81,32 +73,9 @@ stdout on every call — useful for tagging experiment results:
 [cbcbox]   libs    : libCbc.so.3, libClp.so.3, libopenblas.so.0
 ```
 
-> **Non-x86_64 platforms** (Linux aarch64, macOS arm64) ship `generic` and
-> `debug` builds.  `CBCBOX_BUILD=avx2` will raise a `RuntimeError` on those
+> **Non-x86_64 platforms** (Linux aarch64, macOS arm64) ship the `generic`
+> build only.  `CBCBOX_BUILD=avx2` will raise a `RuntimeError` on those
 > platforms.
-
-### Debug build
-
-Every wheel includes a `debug` build compiled with `-O1 -g -fno-omit-frame-pointer`.
-On macOS, [AddressSanitizer](https://clang.llvm.org/docs/AddressSanitizer.html)
-(`-fsanitize=address`) is also enabled.  Linux manylinux containers do not
-reliably provide `libasan`, so ASan is omitted there; Windows/MinGW does not
-support ASan either.
-
-Use the debug build to reproduce and diagnose bugs: on macOS CBC will abort with
-a clear stack trace on memory errors; on all platforms reduced optimisation and
-full debug symbols make stack traces from crashes much more readable.
-
-```bash
-# Run with debug symbols (-O1 -g) — ASan also active on macOS
-CBCBOX_BUILD=debug cbc problem.mps -solve -quit
-```
-
-```python
-import cbcbox, os
-os.environ["CBCBOX_BUILD"] = "debug"
-bin_path = cbcbox.cbc_bin_path()   # → .../cbc_dist_debug/bin/cbc
-```
 
 ## Supported platforms
 
@@ -119,31 +88,6 @@ bin_path = cbcbox.cbc_bin_path()   # → .../cbc_dist_debug/bin/cbc
 | Windows AMD64 | `win_amd64` |
 
 ## Installation
-
-> **Note:** cbcbox is now available on PyPI — `pip install cbcbox`.
-> Pre-built wheel artifacts are also available from the CI runs (see below).
-
-### Installing from a pre-built wheel (recommended)
-
-1. Go to the [Actions tab](../../actions/workflows/wheel.yml) of this repository.
-2. Open the latest successful workflow run.
-3. Download the artifact matching your platform:
-
-   | Artifact name | Platform |
-   |---|---|
-   | `cibw-wheels-Linux-X64` | Linux x86\_64 |
-   | `cibw-wheels-Linux-ARM64` | Linux aarch64 |
-   | `cibw-wheels-macOS-ARM64` | macOS Apple Silicon |
-   | `cibw-wheels-macOS-X64` | macOS x86\_64 |
-   | `cibw-wheels-Windows-X64` | Windows AMD64 |
-
-4. Unzip the artifact and install the `.whl` file:
-
-   ```bash
-   pip install cbcbox-*.whl
-   ```
-
-### Installing from PyPI
 
 ```bash
 pip install cbcbox
@@ -191,10 +135,10 @@ compared to the built-in native Cholesky:
 
 ```bash
 # Solve LP relaxation with barrier + AMD Cholesky, then crossover to simplex basis
-cbc mymodel.mps -barrier -cholesky UniversityOfFlorida -solve -quit
+cbc mymodel.mps -cholesky UniversityOfFlorida -barrier -solve -quit
 
 # Useful as a root-node strategy inside MIP (let CBC use simplex for B&B):
-cbc mymodel.mps -barrier -cholesky UniversityOfFlorida -solve -quit
+cbc mymodel.mps -cholesky UniversityOfFlorida -barrier -solve -quit
 ```
 
 Without AMD, only `-cholesky native` (less efficient) is available.
@@ -211,7 +155,7 @@ import subprocess
 cbcbox.cbc_bin_path()
 # e.g. '/home/user/.venv/lib/python3.13/site-packages/cbcbox/cbc_dist/bin/cbc'
 
-# Directory containing the static and dynamic libraries.
+# Directory containing the shared libraries.
 cbcbox.cbc_lib_dir()
 # e.g. '.../cbcbox/cbc_dist/lib'
 
@@ -249,10 +193,8 @@ On x86_64 Linux, macOS, and Windows the entire stack is compiled **twice**: once
 are built only once (they are pure combinatorial code with no BLAS dependency)
 and reused by both COIN-OR variants.
 
-All COIN-OR components are linked into both **static** (`.a`) and **shared**
-(`.so` / `.dylib`) libraries on Linux and macOS. On Windows only **shared**
-libraries (`.dll`) are produced — MinGW's autotools does not support building
-static and DLL simultaneously. The shared libraries are patched with
+All COIN-OR components are built as **shared** (`.so` / `.dylib` / `.dll`)
+libraries. The shared libraries are patched with
 self-relative RPATHs and bundled inside the wheel, making them directly usable
 via `cffi` or `ctypes` without any system installation.
 
@@ -288,8 +230,7 @@ cbc_dist_avx2/      ← AVX2-optimised build (x86_64 Linux/macOS/Windows)
 
 ### Bundled dynamic libraries
 
-Because the static COIN-OR libraries link to OpenBLAS, which in turn links to
-the Fortran runtime, the following shared libraries are bundled inside the wheel
+Because OpenBLAS links to the Fortran runtime, the following shared libraries are bundled inside the wheel
 and their paths are rewritten so no system installation is required.
 
 #### Linux (`lib/` directory, RPATH set to `$ORIGIN`)
@@ -324,18 +265,23 @@ and their paths are rewritten so no system installation is required.
 
 Wheels are built and tested automatically via GitHub Actions using
 [cibuildwheel](https://cibuildwheel.pypa.io).  The workflow
-(`.github/workflows/wheel.yml`) runs on five separate runners:
+(`.github/workflows/wheel.yml`) runs independent compile jobs in parallel,
+then packages each platform:
 
-| Runner | Produces |
-|---|---|
-| `ubuntu-latest` | `manylinux2014_x86_64` wheel |
-| `ubuntu-24.04-arm` | `manylinux2014_aarch64` wheel |
-| `macos-15` | `macosx_11_0_arm64` wheel |
-| `macos-15-intel` | `macosx_10_9_x86_64` wheel |
-| `windows-latest` | `win_amd64` wheel |
+| Compile jobs | Runner | Produces |
+|---|---|---|
+| `compile-linux-x64-generic` + `compile-linux-x64-avx2` | `ubuntu-latest` | `manylinux2014_x86_64` wheel |
+| `compile-linux-arm64-generic` | `ubuntu-24.04-arm` | `manylinux2014_aarch64` wheel |
+| `compile-macos-arm64-generic` | `macos-15` | `macosx_11_0_arm64` wheel |
+| `compile-macos-intel-generic` + `compile-macos-intel-avx2` | `macos-15-intel` | `macosx_10_9_x86_64` wheel |
+| `compile-windows-generic` + `compile-windows-avx2` | `windows-latest` | `win_amd64` wheel |
 
-After each wheel is built, the test suite in `tests/` is run against the
-installed wheel to verify correctness.
+Each platform's compile jobs run in parallel. Once all compile jobs for a
+platform finish, the corresponding `package-*` job assembles the wheel via
+cibuildwheel and runs the test suite against the installed wheel.
+
+A final `combine_reports` job collects per-platform performance results and
+commits the updated `README.md` to the repository.
 
 ### Integration tests
 
@@ -364,13 +310,6 @@ performance comparison is recorded:
 | `gesa2-o.mps.gz` | 25 779 856.3717 | 2000 s |
 
 Time limits are generous to avoid false failures on slow CI runners.
-
-### Publishing to PyPI
-
-> **Note:** cbcbox is not yet registered on PyPI.  When ready, trigger the
-> workflow manually and select `pypi` (or `testpypi`) in the **Publish** input.
-> Trusted Publisher (OIDC) authentication is used — no API tokens are stored as
-> secrets.
 
 ## Performance results
 
@@ -561,7 +500,7 @@ Geometric mean solve time (seconds) across all test instances.
 Several practical constraints shape the benchmark set:
 
 1. **CI time limits.**  GitHub Actions enforces a 6-hour wall-clock limit per
-   job.  The full MIPLIB 2017 collection contains ~1 065 instances, many of
+   job.  The full MIPLIB 2017 collection contains ~240 instances, many of
    which take hours even on fast hardware.  Including all of them would make
    every CI run time out before producing any useful measurements.
 
