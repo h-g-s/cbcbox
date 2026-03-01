@@ -124,8 +124,8 @@ width = 0.34
 for ax, plat in zip(axes, platforms):
     ax.set_facecolor(STYLE_BG)
 
-    gen_times  = [lookup.get((plat, "generic", inst, THREADS)) for inst in instances]
-    avx2_times = [lookup.get((plat, "avx2",    inst, THREADS)) for inst in instances]
+    gen_times  = [lookup.get((plat, "generic", inst, THREADS)) or 0 for inst in instances]
+    avx2_times = [lookup.get((plat, "avx2",    inst, THREADS)) or 0 for inst in instances]
 
     bars_gen  = ax.bar(x - width / 2, gen_times,  width,
                        label="generic",         color=COLOR_GENERIC,
