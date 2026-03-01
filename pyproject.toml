@@ -40,4 +40,3 @@ cbc = "cbcbox.__main__:main"
 
 [tool.cibuildwheel]
 build-verbosity = 1
-enable = ["pypy"]
