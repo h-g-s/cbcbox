@@ -28,6 +28,7 @@ CASES = [
     ("j3050_8.mps.gz",                  1.0,              2000),
     ("qiu.mps.gz",                      -132.873136947,   2000),
     ("gesa2-o.mps.gz",                  25779856.3717,    2000),
+    ("pk1.mps.gz",                      11.0,             2000),
 ]
 
 _REL_TOL = 1e-6   # relative tolerance for objective comparison
