@@ -33,7 +33,7 @@ OTHER_PLATFORMS = {
 
 GITHUB_RAW = "https://raw.githubusercontent.com/h-g-s/cbcbox/master"
 
-
+reports_dir = sys.argv[1] if len(sys.argv) > 1 else "perf_reports"
 output_png  = sys.argv[2] if len(sys.argv) > 2 else "docs/perf_avx2_speedup.png"
 readme_path = sys.argv[3] if len(sys.argv) > 3 else None
 
@@ -189,11 +189,11 @@ if readme_path and os.path.exists(readme_path) and main_ok:
         other_rel = os.path.relpath(other_png,  repo_root)
         img_url   = GITHUB_RAW + "/" + img_rel.replace(os.sep, "/")
         other_url = GITHUB_RAW + "/" + other_rel.replace(os.sep, "/")
-        other_link = (f"[Windows AMD64 + macOS x86\_64 summary]({other_url})"
+        other_link = (f"[Windows AMD64 + macOS x86_64 summary]({other_url})"
                       if other_ok else "")
         img_md = (
             f"![CBC solve time — generic vs AVX2/Haswell (Linux x86_64)]({img_url})\n\n"
-            f"*Single-threaded solve time across benchmark instances on Linux x86\_64. "
+            f"*Single-threaded solve time across benchmark instances on Linux x86_64. "
             f"Speedup factor shown above each pair. Lower is better.*"
         )
         if other_link:
