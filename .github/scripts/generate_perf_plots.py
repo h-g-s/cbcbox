@@ -108,12 +108,12 @@ def draw_plot(platform_map, title, output_file):
     present = {platform_map[pk] for data in all_data
                for pk in [((data["platform"], data["machine"]))]
                if pk in platform_map}
+    # Keep all platforms that have ANY data (generic or avx2); speedup
+    # annotations are skipped automatically when avx2 data is absent.
     platforms = [v for v in platform_map.values() if v in present]
-    platforms = [p for p in platforms
-                 if any(lookup.get((p, "avx2", inst, THREADS)) for inst in instances)]
 
     if not platforms:
-        print(f"No AVX2 data for {title} — skipping")
+        print(f"No data for platforms in {title} — skipping")
         return False
 
     n_plat = len(platforms)
