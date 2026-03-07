@@ -109,8 +109,14 @@ code paths.
 # ARM64  → debug only  → cbc_dist_debug/bin/cbc
 ./scripts/build_debug.sh
 
-# Force a clean rebuild from scratch:
-./scripts/build_debug.sh --clean
+# With AddressSanitizer:
+./scripts/build_debug.sh --asan
+
+# With ThreadSanitizer:
+./scripts/build_debug.sh --tsan
+
+# Force a clean rebuild from scratch (required when switching sanitizers):
+./scripts/build_debug.sh --asan --clean
 ```
 
 **Linux (manylinux2014 container — matches CI exactly):**
@@ -118,12 +124,14 @@ code paths.
 ```bash
 # Requires Docker; the script prints install instructions if it is missing.
 ./scripts/build_debug_manylinux.sh
+./scripts/build_debug_manylinux.sh --asan
+./scripts/build_debug_manylinux.sh --tsan
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
-# Requires MSYS2 at C:\msys64
+# Requires MSYS2 at C:\msys64.  Note: sanitizers are not supported on Windows/MinGW.
 .\scripts\build_debug_windows.ps1
 .\scripts\build_debug_windows.ps1 -Clean   # force full rebuild
 ```
@@ -140,12 +148,19 @@ lldb cbc_dist_debug/bin/cbc
 (lldb) run mymodel.mps -solve -quit
 ```
 
-On **macOS** the debug binary is also linked with `-fsanitize=address` (ASan).
-If you see false positives from system libraries, suppress them with:
+### Sanitizer tips
 
-```bash
-ASAN_OPTIONS=detect_leaks=0 cbc_dist_debug/bin/cbc mymodel.mps
-```
+| Sanitizer | Flag | What it catches | Runtime env var |
+|---|---|---|---|
+| AddressSanitizer | `--asan` | heap/stack buffer overflows, use-after-free, memory leaks | `ASAN_OPTIONS=detect_leaks=0` to suppress system-lib false positives |
+| ThreadSanitizer  | `--tsan` | data races between threads | `TSAN_OPTIONS=halt_on_error=0` to log races without aborting |
+
+ASan and TSan are mutually exclusive.  Neither is available on Windows/MinGW.
+Always pass `--clean` when switching from one sanitizer to another to avoid
+linking mismatched object files.
+
+OpenBLAS is always built **without** sanitizer flags to avoid false positives
+from hand-optimised BLAS assembly; only the COIN-OR stack is instrumented.
 
 > **Note:** Debug binaries are not included in the published wheels because
 > of their size.  They are intended for local development only.

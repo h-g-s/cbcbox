@@ -8,15 +8,19 @@
 # Variant selection (automatic, based on host architecture):
 #   x86_64 / AMD64  →  CBCBOX_BUILD_VARIANT=debug_avx2
 #                       Flags: -O1 -g -march=haswell -DCOIN_AVX2=4
-#                       macOS also adds: -fsanitize=address
 #                       Output: cbc_dist_debug_avx2/bin/cbc
 #
 #   ARM64 / aarch64 →  CBCBOX_BUILD_VARIANT=debug
 #                       Flags: -O1 -g -fno-omit-frame-pointer
-#                       macOS also adds: -fsanitize=address
 #                       Output: cbc_dist_debug/bin/cbc
 #
-# All builds include: OpenBLAS (-O1 -g), AMD (SuiteSparse), Nauty, pthreads.
+# All builds include: OpenBLAS (-O1 -g, no sanitizer), AMD (SuiteSparse),
+# Nauty, pthreads.  OpenBLAS is always built without sanitizer flags to avoid
+# false positives from hand-optimised BLAS kernels.
+#
+# Sanitizer options (Linux and macOS only; mutually exclusive):
+#   --asan   AddressSanitizer  (-fsanitize=address)
+#   --tsan   ThreadSanitizer   (-fsanitize=thread)
 #
 # Prerequisites:
 #   Common:  python3, pip, make, autoconf, automake, libtool, pkg-config
@@ -29,9 +33,12 @@
 #            brew install gcc  (provides gfortran)
 #
 # Usage:
-#   ./scripts/build_debug.sh [--clean]
+#   ./scripts/build_debug.sh [--asan] [--tsan] [--clean]
 #
+#   --asan   Enable AddressSanitizer (Linux/macOS only).
+#   --tsan   Enable ThreadSanitizer  (Linux/macOS only).
 #   --clean  Delete the output directory before building (force full rebuild).
+#            Always use --clean when switching sanitizers.
 #
 # After a successful build, run the solver:
 #   cbc_dist_debug_avx2/bin/cbc --help          # x86_64
@@ -45,10 +52,13 @@
 #   lldb cbc_dist_debug/bin/cbc
 #   (lldb) run mymodel.mps
 #
-# Note on AddressSanitizer (macOS only):
-#   The macOS build links -fsanitize=address.  If you see false positives from
-#   system libraries, suppress them with:
-#     ASAN_OPTIONS=detect_leaks=0 cbc_dist_debug/bin/cbc mymodel.mps
+# Note on AddressSanitizer:
+#   If you see false positives from system libraries, suppress them with:
+#     ASAN_OPTIONS=detect_leaks=0 cbc_dist_debug_avx2/bin/cbc mymodel.mps
+#
+# Note on ThreadSanitizer:
+#   TSan reports data races.  Run with:
+#     TSAN_OPTIONS=halt_on_error=0 cbc_dist_debug_avx2/bin/cbc mymodel.mps
 
 set -euo pipefail
 
@@ -57,12 +67,24 @@ cd "$REPO_ROOT"
 
 # ── Parse arguments ───────────────────────────────────────────────────────────
 CLEAN=0
+SANITIZE=""
 for arg in "$@"; do
     case "$arg" in
         --clean) CLEAN=1 ;;
-        *) echo "Unknown argument: $arg"; exit 1 ;;
+        --asan)  SANITIZE="address" ;;
+        --tsan)  SANITIZE="thread"  ;;
+        *) echo "Unknown argument: $arg"; echo "Usage: $0 [--asan] [--tsan] [--clean]"; exit 1 ;;
     esac
 done
+
+if [[ "$SANITIZE" == "address" && "$(uname -s)" == "Windows_NT" ]]; then
+    echo "ERROR: --asan is not supported on Windows."
+    exit 1
+fi
+if [[ "$SANITIZE" == "thread" && "$(uname -s)" == "Windows_NT" ]]; then
+    echo "ERROR: --tsan is not supported on Windows."
+    exit 1
+fi
 
 # ── Detect architecture ───────────────────────────────────────────────────────
 ARCH="$(uname -m)"
@@ -83,10 +105,11 @@ esac
 
 OS="$(uname -s)"
 echo "==> cbcbox debug build"
-echo "    OS:       $OS"
-echo "    Arch:     $ARCH"
-echo "    Variant:  $VARIANT"
-echo "    Output:   $OUT_DIR"
+echo "    OS:        $OS"
+echo "    Arch:      $ARCH"
+echo "    Variant:   $VARIANT"
+echo "    Sanitizer: ${SANITIZE:-none}"
+echo "    Output:    $OUT_DIR"
 echo ""
 
 # ── Optional clean ────────────────────────────────────────────────────────────
@@ -142,6 +165,7 @@ echo ""
 
 CBCBOX_BUILD_VARIANT="$VARIANT" \
 CBCBOX_BUILD_ONLY=1 \
+CBCBOX_SANITIZE="$SANITIZE" \
     python3 setup.py build_ext
 
 # ── Report ────────────────────────────────────────────────────────────────────
@@ -159,6 +183,15 @@ if [[ -x "$CBC_BIN" ]]; then
     if [[ "$VARIANT" == "debug_avx2" ]]; then
         echo "    GDB (Linux):   gdb $CBC_BIN"
         echo "    LLDB (macOS):  lldb $CBC_BIN"
+    fi
+    if [[ "$SANITIZE" == "address" ]]; then
+        echo ""
+        echo "    ASan tip: suppress false positives from system libs:"
+        echo "      ASAN_OPTIONS=detect_leaks=0 $CBC_BIN mymodel.mps"
+    elif [[ "$SANITIZE" == "thread" ]]; then
+        echo ""
+        echo "    TSan tip: continue on race reports instead of halting:"
+        echo "      TSAN_OPTIONS=halt_on_error=0 $CBC_BIN mymodel.mps"
     fi
 else
     echo ""

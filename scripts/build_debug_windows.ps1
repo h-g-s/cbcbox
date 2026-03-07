@@ -28,8 +28,23 @@
 
 [CmdletBinding()]
 param(
+    [switch]$Asan,
+    [switch]$Tsan,
     [switch]$Clean
 )
+
+$ErrorActionPreference = "Stop"
+
+if ($Asan -and $Tsan) {
+    Write-Error "-Asan and -Tsan are mutually exclusive."
+    exit 1
+}
+if ($Asan -or $Tsan) {
+    Write-Warning "AddressSanitizer and ThreadSanitizer are not supported by MinGW64 on Windows."
+    Write-Warning "The -Asan / -Tsan flags are ignored.  Use WSL2 with build_debug.sh for sanitizer builds."
+}
+
+$Sanitize = ""   # Windows: sanitizers not available
 
 $ErrorActionPreference = "Stop"
 
@@ -41,8 +56,9 @@ $Variant   = "debug_avx2"
 $OutDir    = Join-Path $RepoRoot "cbc_dist_debug_avx2"
 
 Write-Host "==> cbcbox debug build (Windows / MSYS2 MinGW64)" -ForegroundColor Cyan
-Write-Host "    Variant:  $Variant"
-Write-Host "    Output:   $OutDir"
+Write-Host "    Variant:   $Variant"
+Write-Host "    Sanitizer: none (not supported on Windows/MinGW)"
+Write-Host "    Output:    $OutDir"
 Write-Host ""
 
 # ── Check prerequisites ───────────────────────────────────────────────────────

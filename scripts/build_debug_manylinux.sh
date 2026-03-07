@@ -22,14 +22,19 @@
 #   - Docker (with the ability to run Linux containers)
 #
 # Usage:
-#   ./scripts/build_debug_manylinux.sh [--clean]
+#   ./scripts/build_debug_manylinux.sh [--asan] [--tsan] [--clean]
 #
+#   --asan   Enable AddressSanitizer.  libasan is provided by the manylinux2014
+#            GCC toolchain on both architectures.
+#   --tsan   Enable ThreadSanitizer.
 #   --clean  Delete the output directory before building (force full rebuild).
+#            Always use --clean when switching sanitizers.
 #
 # Note on source-level debugging:
 #   The binary is built inside a container, but the source files are bind-
 #   mounted from your working tree at /project.  GDB/LLDB will resolve source
-#   paths automatically as long as you run the debugger from the same repo root.
+#   paths automatically as long as you run the debugger from the same repo root,
+#   or use: (gdb) set substitute-path /project <repo-root>
 #
 # Note on file ownership:
 #   Files created inside the container are owned by root.  The script fixes
@@ -42,10 +47,13 @@ cd "$REPO_ROOT"
 
 # ── Parse arguments ───────────────────────────────────────────────────────────
 CLEAN=0
+SANITIZE=""
 for arg in "$@"; do
     case "$arg" in
         --clean) CLEAN=1 ;;
-        *) echo "Unknown argument: $arg"; exit 1 ;;
+        --asan)  SANITIZE="address" ;;
+        --tsan)  SANITIZE="thread"  ;;
+        *) echo "Unknown argument: $arg"; echo "Usage: $0 [--asan] [--tsan] [--clean]"; exit 1 ;;
     esac
 done
 
@@ -150,6 +158,7 @@ esac
 echo "==> cbcbox debug build (manylinux2014 container)"
 echo "    Arch:      $ARCH"
 echo "    Variant:   $VARIANT"
+echo "    Sanitizer: ${SANITIZE:-none}"
 echo "    Container: $IMAGE"
 echo "    Output:    $OUT_DIR"
 echo ""
@@ -187,6 +196,7 @@ docker run --rm \
     -v "$REPO_ROOT:/project" \
     -e CBCBOX_BUILD_VARIANT="$VARIANT" \
     -e CBCBOX_BUILD_ONLY=1 \
+    -e CBCBOX_SANITIZE="$SANITIZE" \
     "$IMAGE" \
     bash -c '
         set -euo pipefail
@@ -220,6 +230,15 @@ if [[ -x "$CBC_BIN" ]]; then
     echo "    container mount point).  GDB will find them automatically when run"
     echo "    from this repo root, or use:"
     echo "      (gdb) set substitute-path /project $REPO_ROOT"
+    if [[ "$SANITIZE" == "address" ]]; then
+        echo ""
+        echo "    ASan tip: suppress false positives from system libs:"
+        echo "      ASAN_OPTIONS=detect_leaks=0 $CBC_BIN mymodel.mps"
+    elif [[ "$SANITIZE" == "thread" ]]; then
+        echo ""
+        echo "    TSan tip: continue on race reports instead of halting:"
+        echo "      TSAN_OPTIONS=halt_on_error=0 $CBC_BIN mymodel.mps"
+    fi
 else
     echo ""
     echo "ERROR: Build completed but $CBC_BIN was not found."
