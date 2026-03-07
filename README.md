@@ -85,6 +85,71 @@ stdout on every call — useful for tagging experiment results:
 > build only.  `CBCBOX_BUILD=avx2` will raise a `RuntimeError` on those
 > platforms.
 
+## Local debug builds
+
+The released wheels are fully optimised and stripped.  To debug CBC itself
+(e.g. with GDB or LLDB), use the scripts in `scripts/` to build a local
+debug-enabled binary.  These produce the same full feature set as the release
+wheels (OpenBLAS, AMD, Nauty, pthreads) but compiled with `-O1 -g` and, on
+x86_64, with `-march=haswell -DCOIN_AVX2=4` so you can debug AVX2-specific
+code paths.
+
+| Script | Platform | Environment | Output directory |
+|---|---|---|---|
+| `scripts/build_debug.sh` | Linux, macOS | native (host compiler) | `cbc_dist_debug_avx2/` (x86_64) or `cbc_dist_debug/` (ARM64) |
+| `scripts/build_debug_manylinux.sh` | Linux | Docker — manylinux2014 container (exact CI parity) | same as above |
+| `scripts/build_debug_windows.ps1` | Windows | MSYS2 / MinGW64 | `cbc_dist_debug_avx2\` |
+
+### Quick start
+
+**Linux / macOS (native build):**
+
+```bash
+# x86_64 → debug + AVX2 → cbc_dist_debug_avx2/bin/cbc
+# ARM64  → debug only  → cbc_dist_debug/bin/cbc
+./scripts/build_debug.sh
+
+# Force a clean rebuild from scratch:
+./scripts/build_debug.sh --clean
+```
+
+**Linux (manylinux2014 container — matches CI exactly):**
+
+```bash
+# Requires Docker; the script prints install instructions if it is missing.
+./scripts/build_debug_manylinux.sh
+```
+
+**Windows (PowerShell):**
+
+```powershell
+# Requires MSYS2 at C:\msys64
+.\scripts\build_debug_windows.ps1
+.\scripts\build_debug_windows.ps1 -Clean   # force full rebuild
+```
+
+### Debugging
+
+```bash
+# GDB (Linux):
+gdb cbc_dist_debug_avx2/bin/cbc
+(gdb) run mymodel.mps -solve -quit
+
+# LLDB (macOS):
+lldb cbc_dist_debug/bin/cbc
+(lldb) run mymodel.mps -solve -quit
+```
+
+On **macOS** the debug binary is also linked with `-fsanitize=address` (ASan).
+If you see false positives from system libraries, suppress them with:
+
+```bash
+ASAN_OPTIONS=detect_leaks=0 cbc_dist_debug/bin/cbc mymodel.mps
+```
+
+> **Note:** Debug binaries are not included in the published wheels because
+> of their size.  They are intended for local development only.
+
 ## Supported platforms
 
 | Platform | Wheel tag |

@@ -39,7 +39,8 @@ cmdclass = {"bdist_wheel": genericpy_bdist_wheel}
 THIS_DIR       = os.path.abspath(os.path.dirname(__file__))
 DIST_DIR       = os.path.join(THIS_DIR, "cbc_dist")
 DIST_DIR_AVX2  = os.path.join(THIS_DIR, "cbc_dist_avx2")
-DIST_DIR_DEBUG = os.path.join(THIS_DIR, "cbc_dist_debug")
+DIST_DIR_DEBUG     = os.path.join(THIS_DIR, "cbc_dist_debug")
+DIST_DIR_DEBUG_AVX2 = os.path.join(THIS_DIR, "cbc_dist_debug_avx2")
 LIB_DIR        = os.path.join(DIST_DIR, "lib")
 NPROC    = str(max(1, multiprocessing.cpu_count()))
 
@@ -381,6 +382,8 @@ def build_coin_or(dest_dir=None, extra_cxxflags="", extra_ldflags=""):
         bld_suffix = "_build"
     elif dest_dir == DIST_DIR_AVX2:
         bld_suffix = "_build_avx2"
+    elif dest_dir == DIST_DIR_DEBUG_AVX2:
+        bld_suffix = "_build_debug_avx2"
     else:
         bld_suffix = "_build_debug"
 
@@ -683,17 +686,31 @@ _cbc_exe = "cbc.exe" if platform.system() == "Windows" else "cbc"
 #   unset / "all"  — build generic and AVX2 (default, local behaviour)
 #   "generic"      — build only the generic variant
 #   "avx2"         — build only the AVX2 variant (x86_64 only)
-#   "debug"        — build only the debug variant (all platforms)
-#                    Linux/macOS: -O1 -g -fsanitize=address; Windows: -O1 -g
+#   "debug"        — build with debug symbols, no AVX2 (all platforms)
+#                    Linux/Windows: -O1 -g -fno-omit-frame-pointer
+#                    macOS: also adds -fsanitize=address
+#   "debug_avx2"   — build with debug symbols + AVX2 (x86_64 only)
+#                    Linux/Windows: -O1 -g -march=haswell -fno-omit-frame-pointer
+#                    macOS: also adds -fsanitize=address
+#                    Use this to debug AVX2-specific issues or to run a debuggable
+#                    binary that exercises the same AVX2 code paths as the release.
 # In "avx2" mode AMD and nauty are still compiled (as link-time static deps
 # for the COIN-OR AVX2 build) but with Haswell-optimised flags.
 #
 # CBCBOX_BUILD_ONLY=1 — skip the wheel-packaging stage (used by CI compile
 # jobs that only need the binaries, not the final .whl).
-_build_variant = os.environ.get("CBCBOX_BUILD_VARIANT", "")
-_build_generic = _build_variant not in ("avx2", "debug")
-_build_avx2    = _is_x86_64() and _build_variant not in ("generic", "debug")
-_build_debug   = _build_variant == "debug"
+_build_variant    = os.environ.get("CBCBOX_BUILD_VARIANT", "")
+_build_generic    = _build_variant not in ("avx2", "debug", "debug_avx2")
+_build_avx2       = _is_x86_64() and _build_variant not in ("generic", "debug", "debug_avx2")
+_build_debug      = _build_variant == "debug"
+_build_debug_avx2 = _is_x86_64() and _build_variant == "debug_avx2"
+
+if _build_variant == "debug_avx2" and not _is_x86_64():
+    print(
+        f"[cbcbox] WARNING: CBCBOX_BUILD_VARIANT=debug_avx2 is only supported on x86_64 "
+        f"(current arch: {platform.machine()}). No build will be performed.",
+        flush=True,
+    )
 
 # Flags applied to all C/C++ code in the AVX2 variant, including the static
 # AMD and nauty libraries that are ultimately linked into COIN-OR .so/.dylib.
@@ -709,6 +726,16 @@ else:  # Linux and Windows
     _DEBUG_CFLAGS  = "-O1 -g -fno-omit-frame-pointer"
     _DEBUG_LDFLAGS = ""
 
+# Debug+AVX2 flags: same debug flags plus -march=haswell so the binary exercises
+# the same AVX2 code paths as the release build.  Useful for debugging AVX2-
+# specific issues locally.  Only used on x86_64.
+if platform.system() == "Darwin":
+    _DEBUG_AVX2_CFLAGS  = "-O1 -g -march=haswell -fno-omit-frame-pointer -fsanitize=address"
+    _DEBUG_AVX2_LDFLAGS = "-fsanitize=address"
+else:
+    _DEBUG_AVX2_CFLAGS  = "-O1 -g -march=haswell -fno-omit-frame-pointer"
+    _DEBUG_AVX2_LDFLAGS = ""
+
 if _build_generic and not os.path.exists(os.path.join(DIST_DIR, "bin", _cbc_exe)):
     build_openblas(DIST_DIR, dynamic_arch=True)
     build_amd()
@@ -719,7 +746,7 @@ if _build_generic and not os.path.exists(os.path.join(DIST_DIR, "bin", _cbc_exe)
 # In avx2-only mode AMD and nauty are still needed as link-time static deps for
 # the COIN-OR AVX2 build; compile them with Haswell flags so they are fully
 # optimised and end up embedded in the AVX2 COIN-OR shared libraries.
-if not _build_generic and not _build_debug and not os.path.exists(os.path.join(LIB_DIR, "libamd.a")):
+if not _build_generic and not _build_debug and not _build_debug_avx2 and not os.path.exists(os.path.join(LIB_DIR, "libamd.a")):
     build_amd(extra_cflags=_AVX2_CFLAGS)
     build_nauty(extra_cflags=_AVX2_CFLAGS)
 
@@ -743,6 +770,19 @@ if _build_debug and not os.path.exists(os.path.join(DIST_DIR_DEBUG, "bin", _cbc_
     build_coin_or(DIST_DIR_DEBUG,
                   extra_cxxflags=_DEBUG_CFLAGS,
                   extra_ldflags=_DEBUG_LDFLAGS)
+
+# Debug+AVX2 build (x86_64 only): like the debug build but with -march=haswell
+# and -DCOIN_AVX2=4 so the binary exercises the same AVX2 code paths as the
+# release.  OpenBLAS is built with -O1 -g (no ASan); COIN-OR gets debug+AVX2
+# flags.  AMD/nauty are shared with the base dist (pure integer libs, no SIMD).
+if _build_debug_avx2 and not os.path.exists(os.path.join(DIST_DIR_DEBUG_AVX2, "bin", _cbc_exe)):
+    build_openblas(DIST_DIR_DEBUG_AVX2, dynamic_arch=True, extra_cflags="-O1 -g")
+    if not os.path.exists(os.path.join(LIB_DIR, "libamd.a")):
+        build_amd()
+        build_nauty()
+    build_coin_or(DIST_DIR_DEBUG_AVX2,
+                  extra_cxxflags=f"{_DEBUG_AVX2_CFLAGS} -DCOIN_AVX2=4",
+                  extra_ldflags=_DEBUG_AVX2_LDFLAGS)
 
 
 def _bundle_dist(dist_dir):
@@ -775,6 +815,8 @@ if _build_avx2 and os.path.isdir(DIST_DIR_AVX2):
     _bundle_dist(DIST_DIR_AVX2)
 if _build_debug and os.path.isdir(DIST_DIR_DEBUG):
     _bundle_dist(DIST_DIR_DEBUG)
+if _build_debug_avx2 and os.path.isdir(DIST_DIR_DEBUG_AVX2):
+    _bundle_dist(DIST_DIR_DEBUG_AVX2)
 
 
 def _remove_static_libs(dist_dir: str) -> None:
@@ -794,6 +836,8 @@ if _build_avx2 and os.path.isdir(DIST_DIR_AVX2):
     _remove_static_libs(DIST_DIR_AVX2)
 if _build_debug and os.path.isdir(DIST_DIR_DEBUG):
     _remove_static_libs(DIST_DIR_DEBUG)
+if _build_debug_avx2 and os.path.isdir(DIST_DIR_DEBUG_AVX2):
+    _remove_static_libs(DIST_DIR_DEBUG_AVX2)
 
 
 # ── Package ───────────────────────────────────────────────────────────────────
