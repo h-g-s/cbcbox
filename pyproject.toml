@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cbcbox"
-version = "2.915"
+version = "2.916"
 description = "Binary distribution of the CBC MILP solver (COIN-OR Branch and Cut)"
 readme = "README.md"
 license = { text = "EPL-2.0" }

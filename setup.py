@@ -149,7 +149,8 @@ def clone_if_missing(name, url, branch="master"):
 
 # ── Build OpenBLAS (static, with Fortran/LAPACK) ─────────────────────────────
 
-def build_openblas(dest_dir, *, dynamic_arch=False, target=None, extra_cflags=""):
+def build_openblas(dest_dir, *, dynamic_arch=False, target=None, extra_cflags="",
+                   dynamic_list=None):
     src = clone_if_missing(
         "OpenBLAS",
         "https://github.com/xianyi/OpenBLAS.git",
@@ -175,6 +176,15 @@ def build_openblas(dest_dir, *, dynamic_arch=False, target=None, extra_cflags=""
         # is never needed.
         make_vars.append("DYNAMIC_ARCH=1")
         make_vars.append("NO_AVX512=1")
+        # Limit the set of compiled kernels to modern CPUs; pre-2010
+        # architectures (BARCELONA, CORE2, …) are dropped.  CPUs not in the
+        # list fall back to the generic kernel — correctness is unaffected.
+        if dynamic_list:
+            make_vars.append(f"DYNAMIC_LIST={dynamic_list}")
+
+    # Never build the CBLAS C interface — COIN-OR uses Fortran-style BLAS
+    # (dgemm_, dtrsm_, …) so the cblas_* wrappers are dead weight.
+    make_vars.append("NO_CBLAS=1")
 
     if extra_cflags:
         make_vars.append(f"CFLAGS={extra_cflags}")
@@ -661,6 +671,14 @@ if _build_variant == "debug_avx2" and not _is_x86_64():
 # AMD and nauty libraries that are ultimately linked into COIN-OR .so/.dylib.
 _AVX2_CFLAGS = "-O3 -march=haswell"
 
+# OpenBLAS DYNAMIC_ARCH kernel lists for x86_64 (reduces library size by
+# dropping pre-2010 architectures that are unlikely to be encountered).
+# CPUs not covered by the list fall back to the generic kernel automatically.
+#   Generic: SSE4.2 baseline (Nehalem 2008+) through current Zen.
+#   AVX2:    only AVX2-capable targets (Haswell 2013+).
+_OPENBLAS_DYNLIST_X86_GENERIC = "NEHALEM SANDYBRIDGE HASWELL SKYLAKEX ZEN ZEN2 ZEN3"
+_OPENBLAS_DYNLIST_X86_AVX2    = "HASWELL SKYLAKE SKYLAKEX ZEN2 ZEN3"
+
 # Sanitizer selection for debug builds.  Controlled by CBCBOX_SANITIZE:
 #   unset / ""   — no sanitizer (default)
 #   "address"    — AddressSanitizer (-fsanitize=address)
@@ -699,7 +717,8 @@ _DEBUG_AVX2_CFLAGS  = f"-O1 -g -march=haswell -fno-omit-frame-pointer{_san_cflag
 _DEBUG_AVX2_LDFLAGS = _san_ldflags
 
 if _build_generic and not os.path.exists(os.path.join(DIST_DIR, "bin", _cbc_exe)):
-    build_openblas(DIST_DIR, dynamic_arch=True)
+    build_openblas(DIST_DIR, dynamic_arch=True,
+                   dynamic_list=_OPENBLAS_DYNLIST_X86_GENERIC if _is_x86_64() else None)
     build_amd()
     build_nauty()
     build_coin_or(DIST_DIR)
@@ -718,14 +737,16 @@ if _build_avx2 and not os.path.exists(os.path.join(DIST_DIR_AVX2, "bin", _cbc_ex
     # pass unaligned data which causes SIGSEGV on macOS Intel.  DYNAMIC_ARCH
     # dispatches to the best available kernel at runtime without that assumption.
     # The Haswell advantage comes from -march=haswell on the COIN-OR stack.
-    build_openblas(DIST_DIR_AVX2, dynamic_arch=True)
+    build_openblas(DIST_DIR_AVX2, dynamic_arch=True,
+                   dynamic_list=_OPENBLAS_DYNLIST_X86_AVX2)
     build_coin_or(DIST_DIR_AVX2, extra_cxxflags=f"{_AVX2_CFLAGS} -DCOIN_AVX2=4")
 
 # Debug build: OpenBLAS is built with -O1 -g but WITHOUT ASan to avoid false
 # positives from BLAS kernels; COIN-OR gets full debug flags + ASan.
 # AMD/nauty are static link-time deps shared with the base dist.
 if _build_debug and not os.path.exists(os.path.join(DIST_DIR_DEBUG, "bin", _cbc_exe)):
-    build_openblas(DIST_DIR_DEBUG, dynamic_arch=True, extra_cflags="-O1 -g")
+    build_openblas(DIST_DIR_DEBUG, dynamic_arch=True, extra_cflags="-O1 -g",
+                   dynamic_list=_OPENBLAS_DYNLIST_X86_GENERIC if _is_x86_64() else None)
     if not os.path.exists(os.path.join(LIB_DIR, "libamd.a")):
         build_amd()
         build_nauty()
@@ -738,7 +759,8 @@ if _build_debug and not os.path.exists(os.path.join(DIST_DIR_DEBUG, "bin", _cbc_
 # release.  OpenBLAS is built with -O1 -g (no ASan); COIN-OR gets debug+AVX2
 # flags.  AMD/nauty are shared with the base dist (pure integer libs, no SIMD).
 if _build_debug_avx2 and not os.path.exists(os.path.join(DIST_DIR_DEBUG_AVX2, "bin", _cbc_exe)):
-    build_openblas(DIST_DIR_DEBUG_AVX2, dynamic_arch=True, extra_cflags="-O1 -g")
+    build_openblas(DIST_DIR_DEBUG_AVX2, dynamic_arch=True, extra_cflags="-O1 -g",
+                   dynamic_list=_OPENBLAS_DYNLIST_X86_AVX2)
     if not os.path.exists(os.path.join(LIB_DIR, "libamd.a")):
         build_amd()
         build_nauty()
@@ -793,9 +815,48 @@ def _remove_static_libs(dist_dir: str) -> None:
         print(f"[cbcbox] removed static libs from {lib_dir}: {', '.join(sorted(removed))}")
 
 
+def _strip_binaries(dist_dir: str) -> None:
+    """Strip debug/unneeded symbols from shared libraries and executables.
+
+    Linux: ``strip --strip-unneeded`` removes unreferenced symbols while
+           keeping all exported symbols needed for dynamic linking.
+    macOS: ``strip -x`` removes local/private symbols, preserving exports.
+    Windows: skipped — strip on MinGW DLLs is unreliable.
+    Callers must NOT invoke this on debug builds (symbols are intentional).
+    """
+    system = platform.system()
+    if system == "Windows":
+        return
+
+    if system == "Darwin":
+        strip_args = ["strip", "-x"]
+        lib_glob   = os.path.join(dist_dir, "lib", "*.dylib")
+    else:
+        strip_args = ["strip", "--strip-unneeded"]
+        lib_glob   = os.path.join(dist_dir, "lib", "*.so*")
+
+    targets = [
+        p for p in
+        _glob.glob(lib_glob) + _glob.glob(os.path.join(dist_dir, "bin", "*"))
+        if os.path.isfile(p) and not os.path.islink(p)
+    ]
+
+    stripped, skipped = [], []
+    for path in targets:
+        r = subprocess.run([*strip_args, path], capture_output=True)
+        (stripped if r.returncode == 0 else skipped).append(os.path.basename(path))
+
+    if stripped:
+        print(f"[cbcbox] stripped symbols: {', '.join(sorted(stripped))}", flush=True)
+    if skipped:
+        print(f"[cbcbox] strip skipped (already stripped?): {', '.join(sorted(skipped))}", flush=True)
+
+
 _remove_static_libs(DIST_DIR)
+_strip_binaries(DIST_DIR)
 if _build_avx2 and os.path.isdir(DIST_DIR_AVX2):
     _remove_static_libs(DIST_DIR_AVX2)
+    _strip_binaries(DIST_DIR_AVX2)
 if _build_debug and os.path.isdir(DIST_DIR_DEBUG):
     _remove_static_libs(DIST_DIR_DEBUG)
 if _build_debug_avx2 and os.path.isdir(DIST_DIR_DEBUG_AVX2):
