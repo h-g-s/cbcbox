@@ -676,8 +676,13 @@ _AVX2_CFLAGS = "-O3 -march=haswell"
 # CPUs not covered by the list fall back to the generic kernel automatically.
 #   Generic: SSE4.2 baseline (Nehalem 2008+) through current Zen.
 #   AVX2:    only AVX2-capable targets (Haswell 2013+).
-_OPENBLAS_DYNLIST_X86_GENERIC = "NEHALEM SANDYBRIDGE HASWELL SKYLAKEX ZEN ZEN2 ZEN3"
-_OPENBLAS_DYNLIST_X86_AVX2    = "HASWELL SKYLAKE SKYLAKEX ZEN2 ZEN3"
+# ZEN2, ZEN3, SKYLAKE are excluded: OpenBLAS 0.3.31 compiles their generic C
+# dot/nrm2 kernels with AVX2+FMA intrinsics but omits -mfma from the compiler
+# invocation, causing an "always_inline target mismatch" build error.
+# ZEN2/ZEN3 users fall back to the ZEN kernel (still AVX2); SKYLAKE falls back
+# to HASWELL — both negligible in practice.
+_OPENBLAS_DYNLIST_X86_GENERIC = "NEHALEM SANDYBRIDGE HASWELL SKYLAKEX ZEN"
+_OPENBLAS_DYNLIST_X86_AVX2    = "HASWELL SKYLAKEX"
 
 # Sanitizer selection for debug builds.  Controlled by CBCBOX_SANITIZE:
 #   unset / ""   — no sanitizer (default)
