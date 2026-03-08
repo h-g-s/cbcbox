@@ -25,6 +25,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build generic binary (manylinux2014_aarch64)
         run: |
+          for i in 1 2 3; do
+            docker pull quay.io/pypa/manylinux2014_aarch64 && break
+            echo "Attempt $i failed, retrying in 30s..."
+            sleep 30
+          done
           docker run --rm \
             -v "$PWD:/project" \
             -e CBCBOX_BUILD_VARIANT=generic \
@@ -160,6 +165,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build generic binary (manylinux2014)
         run: |
+          for i in 1 2 3; do
+            docker pull quay.io/pypa/manylinux2014_x86_64 && break
+            echo "Attempt $i failed, retrying in 30s..."
+            sleep 30
+          done
           docker run --rm \
             -v "$PWD:/project" \
             -e CBCBOX_BUILD_VARIANT=generic \
@@ -184,6 +194,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build AVX2 binary (manylinux2014)
         run: |
+          for i in 1 2 3; do
+            docker pull quay.io/pypa/manylinux2014_x86_64 && break
+            echo "Attempt $i failed, retrying in 30s..."
+            sleep 30
+          done
           docker run --rm \
             -v "$PWD:/project" \
             -e CBCBOX_BUILD_VARIANT=avx2 \
