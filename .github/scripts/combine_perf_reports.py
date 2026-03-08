@@ -17,8 +17,10 @@ import math
 import os
 import sys
 
-README_START = "<!-- PERF_RESULTS_START -->"
-README_END   = "<!-- PERF_RESULTS_END -->"
+README_START   = "<!-- PERF_RESULTS_START -->"
+README_END     = "<!-- PERF_RESULTS_END -->"
+SPEEDUP_START  = "<!-- PERF_SPEEDUP_START -->"
+SPEEDUP_END    = "<!-- PERF_SPEEDUP_END -->"
 
 reports_dir = sys.argv[1] if len(sys.argv) > 1 else "perf_reports"
 output_md   = sys.argv[2] if len(sys.argv) > 2 else "perf_report_combined.md"
@@ -136,6 +138,44 @@ def instances_section():
         lines.append("")
     return lines
 
+# ── average AVX2 speedup (x86_64, single thread) ─────────────────────────────
+
+def _avx2_speedup_sentence():
+    """Return a one-line markdown summary of the geometric-mean AVX2 speedup.
+
+    Considers only x86_64 platforms (Linux x86_64 and Windows AMD64 and
+    macOS x86_64) at 1 thread.  Returns None when insufficient data.
+    """
+    if "avx2" not in all_variants:
+        return None
+
+    x86_platforms = [p for p in platforms
+                     if "x86_64" in p or "AMD64" in p]
+    if not x86_platforms:
+        return None
+
+    ratios = []
+    for plat in x86_platforms:
+        for inst in instances:
+            g = lookup.get((plat, "generic", inst, 1))
+            a = lookup.get((plat, "avx2",    inst, 1))
+            if g and a and a > 0:
+                ratios.append(g / a)
+
+    if not ratios:
+        return None
+
+    gm = math.exp(sum(math.log(r) for r in ratios) / len(ratios))
+    n_inst  = len({inst for plat in x86_platforms for inst in instances
+                   if lookup.get((plat, "avx2", inst, 1))})
+    n_plat  = len(x86_platforms)
+    plat_str = ", ".join(x86_platforms)
+    return (
+        f"The AVX2/Haswell build is **~{gm:.1f}×** faster than the generic build "
+        f"on average (geometric mean across {n_inst} instances, {n_plat} x86_64 "
+        f"platform{'s' if n_plat != 1 else ''}: {plat_str})."
+    )
+
 # ── assemble ──────────────────────────────────────────────────────────────────
 
 body_lines = summary_section() + instances_section()
@@ -158,12 +198,24 @@ print(f"Combined report written to {output_md} "
 if readme_path and os.path.exists(readme_path):
     with open(readme_path) as f:
         readme = f.read()
+
+    # ── per-instance / summary tables ─────────────────────────────────────────
     if README_START not in readme or README_END not in readme:
         print(f"Markers not found in {readme_path} — skipping README update.")
     else:
         section = "\n".join(body_lines)
         before  = readme[:readme.index(README_START) + len(README_START)]
         after   = readme[readme.index(README_END):]
-        with open(readme_path, "w") as f:
-            f.write(before + "\n\n" + section + "\n\n" + after)
-        print(f"README updated: {readme_path}")
+        readme  = before + "\n\n" + section + "\n\n" + after
+        print(f"README performance tables updated: {readme_path}")
+
+    # ── average AVX2 speedup blurb ────────────────────────────────────────────
+    speedup_sentence = _avx2_speedup_sentence()
+    if speedup_sentence and SPEEDUP_START in readme and SPEEDUP_END in readme:
+        before = readme[:readme.index(SPEEDUP_START) + len(SPEEDUP_START)]
+        after  = readme[readme.index(SPEEDUP_END):]
+        readme = before + "\n\n" + speedup_sentence + "\n\n" + after
+        print(f"README speedup blurb updated: {speedup_sentence}")
+
+    with open(readme_path, "w") as f:
+        f.write(readme)

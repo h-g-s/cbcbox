@@ -39,6 +39,9 @@ or separate installation steps are needed.
 > *Auto-updated by CI after each successful [workflow run](../../actions/workflows/wheel.yml).
 > Single-threaded solve time — lower is better.*
 
+<!-- PERF_SPEEDUP_START -->
+<!-- PERF_SPEEDUP_END -->
+
 <!-- PERF_PLOT_START -->
 
 ![CBC solve time — generic vs AVX2/Haswell (Linux x86_64)](https://raw.githubusercontent.com/h-g-s/cbcbox/master/docs/perf_avx2_speedup.png)

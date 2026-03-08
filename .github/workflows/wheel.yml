@@ -68,7 +68,7 @@ jobs:
           CIBW_BEFORE_ALL_LINUX: >
             yum install -y gcc-gfortran &&
             pip install patchelf
-          CIBW_ENVIRONMENT_LINUX: "PERF_REPORT_DIR=/output"
+          CIBW_ENVIRONMENT_LINUX: "PERF_REPORT_DIR=/project/tests"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""
           CIBW_TEST_REQUIRES: "pytest"
           CIBW_TEST_COMMAND: "pytest {package}/tests/ -v"
@@ -80,10 +80,6 @@ jobs:
         with:
           name: cibw-wheels-Linux-ARM64
           path: ./wheelhouse/*.whl
-      - name: Copy Linux perf reports from wheelhouse to tests/
-        run: |
-          cp wheelhouse/perf_report.json tests/ 2>/dev/null || true
-          cp wheelhouse/perf_report.md   tests/ 2>/dev/null || true
       - name: Upload performance report
         if: always()
         uses: actions/upload-artifact@v4
@@ -242,7 +238,7 @@ jobs:
           CIBW_BEFORE_ALL_LINUX: >
             yum install -y gcc-gfortran &&
             pip install patchelf
-          CIBW_ENVIRONMENT_LINUX: "PERF_REPORT_DIR=/output"
+          CIBW_ENVIRONMENT_LINUX: "PERF_REPORT_DIR=/project/tests"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""
           CIBW_TEST_REQUIRES: "pytest"
           CIBW_TEST_COMMAND: "pytest {package}/tests/ -v"
@@ -254,10 +250,6 @@ jobs:
         with:
           name: cibw-wheels-Linux-X64
           path: ./wheelhouse/*.whl
-      - name: Copy Linux perf reports from wheelhouse to tests/
-        run: |
-          cp wheelhouse/perf_report.json tests/ 2>/dev/null || true
-          cp wheelhouse/perf_report.md   tests/ 2>/dev/null || true
       - name: Upload performance report
         if: always()
         uses: actions/upload-artifact@v4
