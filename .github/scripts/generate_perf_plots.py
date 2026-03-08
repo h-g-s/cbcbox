@@ -125,8 +125,17 @@ def draw_plot(platform_map, title, output_file):
         axes = [axes]
 
     fig.patch.set_facecolor(STYLE_BG)
-    fig.suptitle(f"CBC solver: generic vs AVX2/Haswell build  ·  single thread  ({title})",
+    fig.suptitle(f"CBC solver: generic vs AVX2/Haswell build  ·  single thread  ·  sorted by solve time  ({title})",
                  fontsize=13, fontweight="bold", color="#1a1a2e")
+
+    # Sort instances by max generic time across present platforms (descending)
+    def _max_generic(inst):
+        return max(
+            (lookup.get((p, "generic", inst, THREADS)) or 0)
+            for p in platforms
+        )
+    sorted_instances = sorted(instances, key=_max_generic, reverse=True)
+    sorted_labels    = [i.replace(".mps.gz", "") for i in sorted_instances]
 
     x     = np.arange(n_inst)
     width = 0.34
@@ -134,8 +143,8 @@ def draw_plot(platform_map, title, output_file):
     for ax, plat in zip(axes, platforms):
         ax.set_facecolor(STYLE_BG)
 
-        gen_times  = [lookup.get((plat, "generic", inst, THREADS)) or 0 for inst in instances]
-        avx2_times = [lookup.get((plat, "avx2",    inst, THREADS)) or 0 for inst in instances]
+        gen_times  = [lookup.get((plat, "generic", inst, THREADS)) or 0 for inst in sorted_instances]
+        avx2_times = [lookup.get((plat, "avx2",    inst, THREADS)) or 0 for inst in sorted_instances]
 
         ax.bar(x - width / 2, gen_times,  width,
                label="generic",         color=COLOR_GENERIC,
@@ -148,21 +157,20 @@ def draw_plot(platform_map, title, output_file):
             if g and a and g > 0 and a > 0:
                 speedup = g / a
                 top = max(g, a)
-                ax.text(x[i], top * 1.12, f"{speedup:.2f}×",
+                ax.text(x[i], top * 1.03, f"{speedup:.2f}×",
                         ha="center", va="bottom", fontsize=8.5, fontweight="bold",
                         color="#d04000" if speedup > 1.05 else "#444")
 
-        ax.set_yscale("log")
         ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{v:g}s"))
-        ax.yaxis.grid(True, which="both", color=GRID_COLOR, linewidth=0.6, zorder=0)
+        ax.yaxis.grid(True, color=GRID_COLOR, linewidth=0.6, zorder=0)
         ax.set_axisbelow(True)
         ax.spines[["top", "right"]].set_visible(False)
         ax.spines[["left", "bottom"]].set_color(GRID_COLOR)
         ax.set_xticks(x)
-        ax.set_xticklabels(INST_LABELS, rotation=18, ha="right", fontsize=9)
-        ax.set_ylabel("Solve time (log scale)", fontsize=9)
+        ax.set_xticklabels(sorted_labels, rotation=18, ha="right", fontsize=9)
+        ax.set_ylabel("Solve time (s)", fontsize=9)
         ax.set_title(plat, fontsize=11, fontweight="semibold", pad=6)
-        ax.legend(framealpha=0.85, fontsize=9, loc="upper left")
+        ax.legend(framealpha=0.85, fontsize=9, loc="upper right")
 
     os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
     fig.savefig(output_file, dpi=150, bbox_inches="tight", facecolor=STYLE_BG)
@@ -193,7 +201,7 @@ if readme_path and os.path.exists(readme_path) and main_ok:
                       if other_ok else "")
         img_md = (
             f"![CBC solve time — generic vs AVX2/Haswell (Linux x86_64)]({img_url})\n\n"
-            f"*Single-threaded solve time across benchmark instances on Linux x86_64. "
+            f"*Single-threaded solve time across benchmark instances on Linux x86_64, sorted by solve time. "
             f"Speedup factor shown above each pair. Lower is better.*"
         )
         if other_link:
