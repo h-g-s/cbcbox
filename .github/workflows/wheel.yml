@@ -71,7 +71,7 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: "PERF_REPORT_DIR=/output"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""
           CIBW_TEST_REQUIRES: "pytest"
-          CIBW_TEST_COMMAND: "pytest {package}/tests/ -v"
+          CIBW_TEST_COMMAND: "mkdir -p /output && pytest {package}/tests/ -v"
         with:
           package-dir: .
           output-dir: wheelhouse
@@ -241,7 +241,7 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: "PERF_REPORT_DIR=/output"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""
           CIBW_TEST_REQUIRES: "pytest"
-          CIBW_TEST_COMMAND: "pytest {package}/tests/ -v"
+          CIBW_TEST_COMMAND: "mkdir -p /output && pytest {package}/tests/ -v"
         with:
           package-dir: .
           output-dir: wheelhouse
