@@ -61,8 +61,8 @@ On **x86_64 Linux, macOS, and Windows**, the wheel ships two complete sets of bi
 
 | Variant | OpenBLAS kernel | Clp SIMD | Minimum CPU |
 |---|---|---|---|
-| `generic` | `DYNAMIC_ARCH` (runtime dispatch) | standard | any x86_64 |
-| `avx2` | `HASWELL` (256-bit AVX2/FMA) | `-march=haswell -DCOIN_AVX2=4` (all Haswell ISA extensions + 4-double AVX2 layout) | Haswell (2013+) |
+| `generic` | `DYNAMIC_ARCH=1` (runtime dispatch, Nehalem–Zen targets) | standard | any x86_64 |
+| `avx2` | `DYNAMIC_ARCH=1` + `DYNAMIC_LIST=HASWELL SKYLAKEX` | `-march=haswell -DCOIN_AVX2=4` | Haswell (2013+) |
 
 At import time `cbcbox` automatically selects `avx2` when it is available **and**
 the running CPU supports AVX2; otherwise it falls back to `generic`.
@@ -282,10 +282,12 @@ in the following order:
 | **[OpenBLAS](https://github.com/OpenMathLib/OpenBLAS)** | v0.3.31 | Optimised BLAS/LAPACK for LP basis factorisation |
 
 On x86_64 Linux, macOS, and Windows the entire stack is compiled **twice**: once for the
-`generic` variant (OpenBLAS `DYNAMIC_ARCH=1`) and once for the `avx2` variant
-(`TARGET=HASWELL`, `CXXFLAGS=-O3 -march=haswell -DCOIN_AVX2=4`).  AMD and Nauty
-are built only once (they are pure combinatorial code with no BLAS dependency)
-and reused by both COIN-OR variants.
+`generic` variant (OpenBLAS `DYNAMIC_ARCH=1` with a broad set of x86_64 targets for
+runtime dispatch) and once for the `avx2` variant (OpenBLAS `DYNAMIC_ARCH=1` restricted
+to Haswell/Skylake targets via `DYNAMIC_LIST`, COIN-OR compiled with
+`-march=haswell -DCOIN_AVX2=4`). Both variants use `NO_CBLAS=1` (COIN-OR only calls
+the Fortran BLAS interface). AMD and Nauty are built only once (they are pure
+combinatorial code with no BLAS dependency) and reused by both COIN-OR variants.
 
 All COIN-OR components are built as **shared** (`.so` / `.dylib` / `.dll`)
 libraries. The shared libraries are patched with
