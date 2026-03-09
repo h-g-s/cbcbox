@@ -379,7 +379,7 @@ commits the updated `README.md` to the repository.
 
 ### Integration tests
 
-The test suite (`pytest`) solves fifteen MIP instances and checks the optimal
+The test suite (`pytest`) solves 19 MIP instances and checks the optimal
 objective values, in both single-threaded and parallel (3-thread) modes.
 On x86_64 Linux, macOS, and Windows **each test is run twice** — once against
 the `generic` binary and once against the `avx2` binary — and a side-by-side
@@ -387,21 +387,25 @@ performance comparison is recorded:
 
 | Instance | Expected optimal | Time limit |
 |---|---|---|
-| `pp08a.mps.gz` | 7 350 | 2000 s |
-| `sprint_hidden06_j.mps.gz` | 130 | 2000 s |
-| `air03.mps.gz` | 340 160 | 2000 s |
-| `air04.mps.gz` | 56 137 | 2000 s |
-| `air05.mps.gz` | 26 374 | 2000 s |
-| `nw04.mps.gz` | 16 862 | 2000 s |
-| `mzzv11.mps.gz` | −21 718 | 2000 s |
-| `trd445c.mps.gz` | −153 419.078836 | 2000 s |
-| `nursesched-sprint02.mps.gz` | 58 | 2000 s |
-| `stein45.mps.gz` | 30 | 2000 s |
-| `neos-810286.mps.gz` | 2 877 | 2000 s |
-| `neos-1281048.mps.gz` | 601 | 2000 s |
-| `j3050_8.mps.gz` | 1 | 2000 s |
-| `qiu.mps.gz` | −132.873136947 | 2000 s |
-| `gesa2-o.mps.gz` | 25 779 856.3717 | 2000 s |
+| `pp08a` | 7 350 | 2000 s |
+| `sprint_hidden06_j` | 130 | 2000 s |
+| `air03` | 340 160 | 2000 s |
+| `air04` | 56 137 | 2000 s |
+| `air05` | 26 374 | 2000 s |
+| `nw04` | 16 862 | 2000 s |
+| `mzzv11` | −21 718 | 2000 s |
+| `trd445c` | −153 419.078836 | 2000 s |
+| `nursesched-sprint02` | 58 | 2000 s |
+| `stein45` | 30 | 2000 s |
+| `neos-810286` | 2 877 | 2000 s |
+| `neos-1281048` | 601 | 2000 s |
+| `j3050_8` | 1 | 2000 s |
+| `qiu` | −132.873136947 | 2000 s |
+| `gesa2-o` | 25 779 856.3717 | 2000 s |
+| `pk1` | 11 | 2000 s |
+| `mas76` | 40 005.054142 | 2000 s |
+| `app1-1` | −3 | 2000 s |
+| `eil33-2` | 934.007916 | 2000 s |
 
 Time limits are generous to avoid false failures on slow CI runners.
 

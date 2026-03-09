@@ -116,7 +116,8 @@ def instances_section():
     lines = ["## Per-instance results", ""]
     thread_hdrs = [f"{t} thread{'s' if t > 1 else ''} (s)" for t in thread_counts]
     for instance in instances:
-        lines += [f"### `{instance}`", ""]
+        label = instance.replace(".mps.gz", "")
+        lines += [f"### `{label}`", ""]
         header = ["Platform", "Build"] + thread_hdrs
         if len(thread_counts) >= 2:
             header.append("parallel speedup")
