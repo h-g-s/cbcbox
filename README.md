@@ -91,86 +91,6 @@ stdout on every call — useful for tagging experiment results:
 > build only.  `CBCBOX_BUILD=avx2` will raise a `RuntimeError` on those
 > platforms.
 
-## Local debug builds
-
-The released wheels are fully optimised and stripped.  To debug CBC itself
-(e.g. with GDB or LLDB), use the scripts in `scripts/` to build a local
-debug-enabled binary.  These produce the same full feature set as the release
-wheels (OpenBLAS, AMD, Nauty, pthreads) but compiled with `-O1 -g` and, on
-x86_64, with `-march=haswell -DCOIN_AVX2=4` so you can debug AVX2-specific
-code paths.
-
-| Script | Platform | Environment | Output directory |
-|---|---|---|---|
-| `scripts/build_debug.sh` | Linux, macOS | native (host compiler) | `cbc_dist_debug_avx2/` (x86_64) or `cbc_dist_debug/` (ARM64) |
-| `scripts/build_debug_manylinux.sh` | Linux | Docker — manylinux2014 container (exact CI parity) | same as above |
-| `scripts/build_debug_windows.ps1` | Windows | MSYS2 / MinGW64 | `cbc_dist_debug_avx2\` |
-
-### Quick start
-
-**Linux / macOS (native build):**
-
-```bash
-# x86_64 → debug + AVX2 → cbc_dist_debug_avx2/bin/cbc
-# ARM64  → debug only  → cbc_dist_debug/bin/cbc
-./scripts/build_debug.sh
-
-# With AddressSanitizer:
-./scripts/build_debug.sh --asan
-
-# With ThreadSanitizer:
-./scripts/build_debug.sh --tsan
-
-# Force a clean rebuild from scratch (required when switching sanitizers):
-./scripts/build_debug.sh --asan --clean
-```
-
-**Linux (manylinux2014 container — matches CI exactly):**
-
-```bash
-# Requires Docker; the script prints install instructions if it is missing.
-./scripts/build_debug_manylinux.sh
-./scripts/build_debug_manylinux.sh --asan
-./scripts/build_debug_manylinux.sh --tsan
-```
-
-**Windows (PowerShell):**
-
-```powershell
-# Requires MSYS2 at C:\msys64.  Note: sanitizers are not supported on Windows/MinGW.
-.\scripts\build_debug_windows.ps1
-.\scripts\build_debug_windows.ps1 -Clean   # force full rebuild
-```
-
-### Debugging
-
-```bash
-# GDB (Linux):
-gdb cbc_dist_debug_avx2/bin/cbc
-(gdb) run mymodel.mps -solve -quit
-
-# LLDB (macOS):
-lldb cbc_dist_debug/bin/cbc
-(lldb) run mymodel.mps -solve -quit
-```
-
-### Sanitizer tips
-
-| Sanitizer | Flag | What it catches | Runtime env var |
-|---|---|---|---|
-| AddressSanitizer | `--asan` | heap/stack buffer overflows, use-after-free, memory leaks | `ASAN_OPTIONS=detect_leaks=0` to suppress system-lib false positives |
-| ThreadSanitizer  | `--tsan` | data races between threads | `TSAN_OPTIONS=halt_on_error=0` to log races without aborting |
-
-ASan and TSan are mutually exclusive.  Neither is available on Windows/MinGW.
-Always pass `--clean` when switching from one sanitizer to another to avoid
-linking mismatched object files.
-
-OpenBLAS is always built **without** sanitizer flags to avoid false positives
-from hand-optimised BLAS assembly; only the COIN-OR stack is instrumented.
-
-> **Note:** Debug binaries are not included in the published wheels because
-> of their size.  They are intended for local development only.
-
 ## Supported platforms
 
 | Platform | Wheel tag |
@@ -752,6 +672,86 @@ Several practical constraints shape the benchmark set:
    exactly the domain where [column generation](https://en.wikipedia.org/wiki/Column_generation)
    is most valuable.  Since the benchmark focuses on this problem class rather
    than providing a general-purpose solver survey, it is a specially interesting use case.
+
+## Local debug builds
+
+The released wheels are fully optimised and stripped.  To debug CBC itself
+(e.g. with GDB or LLDB), use the scripts in `scripts/` to build a local
+debug-enabled binary.  These produce the same full feature set as the release
+wheels (OpenBLAS, AMD, Nauty, pthreads) but compiled with `-O1 -g` and, on
+x86_64, with `-march=haswell -DCOIN_AVX2=4` so you can debug AVX2-specific
+code paths.
+
+| Script | Platform | Environment | Output directory |
+|---|---|---|---|
+| `scripts/build_debug.sh` | Linux, macOS | native (host compiler) | `cbc_dist_debug_avx2/` (x86_64) or `cbc_dist_debug/` (ARM64) |
+| `scripts/build_debug_manylinux.sh` | Linux | Docker — manylinux2014 container (exact CI parity) | same as above |
+| `scripts/build_debug_windows.ps1` | Windows | MSYS2 / MinGW64 | `cbc_dist_debug_avx2\` |
+
+### Quick start
+
+**Linux / macOS (native build):**
+
+```bash
+# x86_64 → debug + AVX2 → cbc_dist_debug_avx2/bin/cbc
+# ARM64  → debug only  → cbc_dist_debug/bin/cbc
+./scripts/build_debug.sh
+
+# With AddressSanitizer:
+./scripts/build_debug.sh --asan
+
+# With ThreadSanitizer:
+./scripts/build_debug.sh --tsan
+
+# Force a clean rebuild from scratch (required when switching sanitizers):
+./scripts/build_debug.sh --asan --clean
+```
+
+**Linux (manylinux2014 container — matches CI exactly):**
+
+```bash
+# Requires Docker; the script prints install instructions if it is missing.
+./scripts/build_debug_manylinux.sh
+./scripts/build_debug_manylinux.sh --asan
+./scripts/build_debug_manylinux.sh --tsan
+```
+
+**Windows (PowerShell):**
+
+```powershell
+# Requires MSYS2 at C:\msys64.  Note: sanitizers are not supported on Windows/MinGW.
+.\scripts\build_debug_windows.ps1
+.\scripts\build_debug_windows.ps1 -Clean   # force full rebuild
+```
+
+### Debugging
+
+```bash
+# GDB (Linux):
+gdb cbc_dist_debug_avx2/bin/cbc
+(gdb) run mymodel.mps -solve -quit
+
+# LLDB (macOS):
+lldb cbc_dist_debug/bin/cbc
+(lldb) run mymodel.mps -solve -quit
+```
+
+### Sanitizer tips
+
+| Sanitizer | Flag | What it catches | Runtime env var |
+|---|---|---|---|
+| AddressSanitizer | `--asan` | heap/stack buffer overflows, use-after-free, memory leaks | `ASAN_OPTIONS=detect_leaks=0` to suppress system-lib false positives |
+| ThreadSanitizer  | `--tsan` | data races between threads | `TSAN_OPTIONS=halt_on_error=0` to log races without aborting |
+
+ASan and TSan are mutually exclusive.  Neither is available on Windows/MinGW.
+Always pass `--clean` when switching from one sanitizer to another to avoid
+linking mismatched object files.
+
+OpenBLAS is always built **without** sanitizer flags to avoid false positives
+from hand-optimised BLAS assembly; only the COIN-OR stack is instrumented.
+
+> **Note:** Debug binaries are not included in the published wheels because
+> of their size.  They are intended for local development only.
 
 ## License
 
