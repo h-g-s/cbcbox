@@ -381,7 +381,7 @@ commits the updated `README.md` to the repository.
 
 ### Integration tests
 
-The test suite (`pytest`) solves 19 MIP instances and checks the optimal
+The test suite (`pytest`) solves 20 MIP instances and checks the optimal
 objective values, in both single-threaded and parallel (3-thread) modes.
 On x86_64 Linux, macOS, and Windows **each test is run twice** — once against
 the `generic` binary and once against the `avx2` binary — and a side-by-side
@@ -408,6 +408,7 @@ performance comparison is recorded:
 | `mas76` | 40 005.054142 | 2000 s |
 | `app1-1` | −3 | 2000 s |
 | `eil33-2` | 934.007916 | 2000 s |
+| `fiber` | 405 935.18 | 2000 s |
 
 Time limits are generous to avoid false failures on slow CI runners.
 
