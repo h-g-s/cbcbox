@@ -35,6 +35,7 @@ CASES = [
     ("fiber.mps.gz",                    405935.18,        2000),
     ("neos-2987310-joes.mps.gz",        -607702988.291,   2000),
     ("neos-827175.mps.gz",              112.00152,        2000),
+    ("neos-3083819-nubu.mps.gz",        6307996.0,        2000),
 ]
 
 _REL_TOL = 1e-6   # relative tolerance for objective comparison
