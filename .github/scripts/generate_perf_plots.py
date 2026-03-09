@@ -33,9 +33,9 @@ OTHER_PLATFORMS = {
 
 GITHUB_RAW = "https://raw.githubusercontent.com/h-g-s/cbcbox/master"
 
-# Instances excluded from plots: all solve times < 10 s across all configs
-# (too fast to show meaningful bars; would crowd the x-axis with near-zero bars)
-PLOT_BLACKLIST = {"air03.mps.gz", "fiber.mps.gz", "j3050_8.mps.gz"}
+# Instances excluded from plots: max solve time < 10 s across all configs/platforms
+# (too fast to show meaningful differences; would crowd the x-axis with near-zero bars)
+PLOT_BLACKLIST = {"air03.mps.gz", "fiber.mps.gz"}
 
 reports_dir = sys.argv[1] if len(sys.argv) > 1 else "perf_reports"
 output_png  = sys.argv[2] if len(sys.argv) > 2 else "docs/perf_avx2_speedup.png"
