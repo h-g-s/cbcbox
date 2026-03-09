@@ -33,6 +33,10 @@ OTHER_PLATFORMS = {
 
 GITHUB_RAW = "https://raw.githubusercontent.com/h-g-s/cbcbox/master"
 
+# Instances excluded from plots: all solve times < 10 s across all configs
+# (too fast to show meaningful bars; would crowd the x-axis with near-zero bars)
+PLOT_BLACKLIST = {"air03.mps.gz", "fiber.mps.gz", "j3050_8.mps.gz"}
+
 reports_dir = sys.argv[1] if len(sys.argv) > 1 else "perf_reports"
 output_png  = sys.argv[2] if len(sys.argv) > 2 else "docs/perf_avx2_speedup.png"
 readme_path = sys.argv[3] if len(sys.argv) > 3 else None
@@ -85,7 +89,7 @@ seen_inst = set()
 instances = []
 for data in all_data:
     for r in data["results"]:
-        if r["instance"] not in seen_inst:
+        if r["instance"] not in seen_inst and r["instance"] not in PLOT_BLACKLIST:
             instances.append(r["instance"])
             seen_inst.add(r["instance"])
 
