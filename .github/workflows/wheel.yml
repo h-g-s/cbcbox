@@ -68,7 +68,7 @@ jobs:
           CIBW_BEFORE_ALL_LINUX: >
             yum install -y gcc-gfortran &&
             pip install patchelf
-          CIBW_ENVIRONMENT_LINUX: "PERF_REPORT_DIR=/project/tests"
+          CIBW_ENVIRONMENT_LINUX: "PERF_REPORT_DIR=/output"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""
           CIBW_TEST_REQUIRES: "pytest"
           CIBW_TEST_COMMAND: "pytest {package}/tests/ -v"
@@ -86,8 +86,8 @@ jobs:
         with:
           name: perf-report-linux-arm64
           path: |
-            tests/perf_report.md
-            tests/perf_report.json
+            wheelhouse/perf_report.md
+            wheelhouse/perf_report.json
 
   # ── macOS ARM64 ───────────────────────────────────────────────────────────────
 
@@ -238,7 +238,7 @@ jobs:
           CIBW_BEFORE_ALL_LINUX: >
             yum install -y gcc-gfortran &&
             pip install patchelf
-          CIBW_ENVIRONMENT_LINUX: "PERF_REPORT_DIR=/project/tests"
+          CIBW_ENVIRONMENT_LINUX: "PERF_REPORT_DIR=/output"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""
           CIBW_TEST_REQUIRES: "pytest"
           CIBW_TEST_COMMAND: "pytest {package}/tests/ -v"
@@ -256,8 +256,8 @@ jobs:
         with:
           name: perf-report-ubuntu-latest-x86_64
           path: |
-            tests/perf_report.md
-            tests/perf_report.json
+            wheelhouse/perf_report.md
+            wheelhouse/perf_report.json
 
   # ── macOS Intel (x86_64) ─────────────────────────────────────────────────────
 
