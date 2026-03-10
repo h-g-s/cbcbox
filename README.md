@@ -301,7 +301,7 @@ commits the updated `README.md` to the repository.
 
 ### Integration tests
 
-The test suite (`pytest`) solves 23 MIP instances and checks the optimal
+The test suite (`pytest`) solves 24 MIP instances and checks the optimal
 objective values, in both single-threaded and parallel (3-thread) modes.
 On x86_64 Linux, macOS, and Windows **each test is run twice** — once against
 the `generic` binary and once against the `avx2` binary — and a side-by-side
@@ -332,6 +332,7 @@ performance comparison is recorded:
 | `neos-2987310-joes` | −607 702 988.291 | 2000 s |
 | `neos-827175` | 112.00152 | 2000 s |
 | `neos-3083819-nubu` | 6307996 | 2000 s |
+| `markshare_4_0` | 1 | 2000 s |
 
 Time limits are generous to avoid false failures on slow CI runners.
 

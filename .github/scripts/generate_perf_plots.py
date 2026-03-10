@@ -33,9 +33,18 @@ OTHER_PLATFORMS = {
 
 GITHUB_RAW = "https://raw.githubusercontent.com/h-g-s/cbcbox/master"
 
-# Instances excluded from plots: max solve time < 10 s across all configs/platforms
-# (too fast to show meaningful differences; would crowd the x-axis with near-zero bars)
-PLOT_BLACKLIST = {"air03.mps.gz", "fiber.mps.gz"}
+# Instances whose maximum solve time across all platforms/variants/thread counts
+# is below 30 s are excluded from the performance plot.  They are still tested
+# in the full test suite; they are omitted here only because near-zero bars
+# would crowd the x-axis without conveying useful information.
+TOO_FAST_FOR_PLOT = {
+    "air03.mps.gz",
+    "fiber.mps.gz",
+    "j3050_8.mps.gz",
+    "pp08a.mps.gz",
+    "gesa2-o.mps.gz",
+    "stein45.mps.gz",
+}
 
 reports_dir = sys.argv[1] if len(sys.argv) > 1 else "perf_reports"
 output_png  = sys.argv[2] if len(sys.argv) > 2 else "docs/perf_avx2_speedup.png"
@@ -89,7 +98,7 @@ seen_inst = set()
 instances = []
 for data in all_data:
     for r in data["results"]:
-        if r["instance"] not in seen_inst and r["instance"] not in PLOT_BLACKLIST:
+        if r["instance"] not in seen_inst and r["instance"] not in TOO_FAST_FOR_PLOT:
             instances.append(r["instance"])
             seen_inst.add(r["instance"])
 
