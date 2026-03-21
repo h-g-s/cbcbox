@@ -37,6 +37,11 @@ CASES = [
     ("neos-827175.mps.gz",              112.00152,        2000),
     ("neos-3083819-nubu.mps.gz",        6307996.0,        2000),
     ("markshare_4_0.mps.gz",           1.0,              2000),
+    ("nu25-pr12.mps.gz",               53905.0,          2000),
+    ("swath1.mps.gz",                  379.07129575,     2000),
+    ("physiciansched6-2.mps.gz",       49324.0,          2000),
+    ("mzzv42z.mps.gz",                 -20540.0,         2000),
+    ("neos-860300.mps.gz",             3201.0,           2000),
 ]
 
 _REL_TOL = 1e-6   # relative tolerance for objective comparison
