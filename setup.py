@@ -638,27 +638,35 @@ _cbc_exe = "cbc.exe" if platform.system() == "Windows" else "cbc"
 
 # CBCBOX_BUILD_VARIANT controls which variants are compiled (used by CI to run
 # builds in parallel jobs):
-#   unset / "all"  — build generic and AVX2 (default, local behaviour)
-#   "generic"      — build only the generic variant
-#   "avx2"         — build only the AVX2 variant (x86_64 only)
-#   "debug"        — build with debug symbols, no AVX2 (all platforms)
-#                    Linux/Windows: -O1 -g -fno-omit-frame-pointer
-#                    macOS: also adds -fsanitize=address
-#   "debug_avx2"   — build with debug symbols + AVX2 (x86_64 only)
-#                    Linux/Windows: -O1 -g -march=haswell -fno-omit-frame-pointer
-#                    macOS: also adds -fsanitize=address
+#   unset / "all"  — build generic, AVX2 (x86_64), and debug:
+#                      x86_64:     generic + avx2 + debug_avx2
+#                      other arch: generic + debug
+#   "generic"      — build only the generic variant (no debug)
+#   "avx2"         — build only the AVX2 variant (x86_64 only, no debug)
+#   "debug"        — build only the non-AVX2 debug variant (all platforms)
+#                    COIN-OR flags: -O1 -g -fno-omit-frame-pointer
+#                    Optional sanitizer: set CBCBOX_SANITIZE=address or =thread
+#   "debug_avx2"   — build only the debug+AVX2 variant (x86_64 only)
+#                    COIN-OR flags: -O1 -g -march=haswell -fno-omit-frame-pointer
+#                    Optional sanitizer: set CBCBOX_SANITIZE=address or =thread
 #                    Use this to debug AVX2-specific issues or to run a debuggable
 #                    binary that exercises the same AVX2 code paths as the release.
 # In "avx2" mode AMD and nauty are still compiled (as link-time static deps
 # for the COIN-OR AVX2 build) but with Haswell-optimised flags.
+# OpenBLAS and AMD are always built without debug flags; only the COIN-OR stack
+# (CoinUtils, Osi, Clp, Cgl, Cbc) carries debug symbols in debug builds.
 #
 # CBCBOX_BUILD_ONLY=1 — skip the wheel-packaging stage (used by CI compile
 # jobs that only need the binaries, not the final .whl).
 _build_variant    = os.environ.get("CBCBOX_BUILD_VARIANT", "")
 _build_generic    = _build_variant not in ("avx2", "debug", "debug_avx2")
 _build_avx2       = _is_x86_64() and _build_variant not in ("generic", "debug", "debug_avx2")
-_build_debug      = _build_variant == "debug"
-_build_debug_avx2 = _is_x86_64() and _build_variant == "debug_avx2"
+# Debug (non-AVX2): built by default on non-x86_64; on x86_64 only when
+# explicitly requested so we avoid a redundant generic-debug wheel alongside
+# the haswell-debug one.
+_build_debug      = _build_variant == "debug" or (_build_variant == "" and not _is_x86_64())
+# Debug+AVX2: built by default on x86_64 (the only debug variant for that arch).
+_build_debug_avx2 = _is_x86_64() and (_build_variant == "debug_avx2" or _build_variant == "")
 
 if _build_variant == "debug_avx2" and not _is_x86_64():
     print(
@@ -746,11 +754,11 @@ if _build_avx2 and not os.path.exists(os.path.join(DIST_DIR_AVX2, "bin", _cbc_ex
                    dynamic_list=_OPENBLAS_DYNLIST_X86_AVX2)
     build_coin_or(DIST_DIR_AVX2, extra_cxxflags=f"{_AVX2_CFLAGS} -DCOIN_AVX2=4")
 
-# Debug build: OpenBLAS is built with -O1 -g but WITHOUT ASan to avoid false
-# positives from BLAS kernels; COIN-OR gets full debug flags + ASan.
-# AMD/nauty are static link-time deps shared with the base dist.
+# Debug build: OpenBLAS is built WITHOUT debug flags (no debug info for
+# third-party code); only the COIN-OR stack gets full debug flags + optional
+# ASan.  AMD/nauty are static link-time deps shared with the base dist.
 if _build_debug and not os.path.exists(os.path.join(DIST_DIR_DEBUG, "bin", _cbc_exe)):
-    build_openblas(DIST_DIR_DEBUG, dynamic_arch=True, extra_cflags="-O1 -g",
+    build_openblas(DIST_DIR_DEBUG, dynamic_arch=True,
                    dynamic_list=_OPENBLAS_DYNLIST_X86_GENERIC if _is_x86_64() else None)
     if not os.path.exists(os.path.join(LIB_DIR, "libamd.a")):
         build_amd()
@@ -761,10 +769,11 @@ if _build_debug and not os.path.exists(os.path.join(DIST_DIR_DEBUG, "bin", _cbc_
 
 # Debug+AVX2 build (x86_64 only): like the debug build but with -march=haswell
 # and -DCOIN_AVX2=4 so the binary exercises the same AVX2 code paths as the
-# release.  OpenBLAS is built with -O1 -g (no ASan); COIN-OR gets debug+AVX2
-# flags.  AMD/nauty are shared with the base dist (pure integer libs, no SIMD).
+# release.  OpenBLAS is built WITHOUT debug flags (no debug info for third-party
+# code); only the COIN-OR stack gets debug+AVX2 flags.
+# AMD/nauty are shared with the base dist (pure integer libs, no SIMD).
 if _build_debug_avx2 and not os.path.exists(os.path.join(DIST_DIR_DEBUG_AVX2, "bin", _cbc_exe)):
-    build_openblas(DIST_DIR_DEBUG_AVX2, dynamic_arch=True, extra_cflags="-O1 -g",
+    build_openblas(DIST_DIR_DEBUG_AVX2, dynamic_arch=True,
                    dynamic_list=_OPENBLAS_DYNLIST_X86_AVX2)
     if not os.path.exists(os.path.join(LIB_DIR, "libamd.a")):
         build_amd()
@@ -904,6 +913,20 @@ Built with:
             shutil.copytree(DIST_DIR_AVX2, os.path.join(_pkg_dir, dist_name_avx2),
                             dirs_exist_ok=True)
             package_data_patterns.append(f"{dist_name_avx2}/**")
+
+        # Include the debug build when present (non-x86_64: generic debug;
+        # x86_64: debug+AVX2 only, shipped as cbc_dist_debug_avx2).
+        dist_name_debug = "cbc_dist_debug"
+        if os.path.isdir(DIST_DIR_DEBUG):
+            shutil.copytree(DIST_DIR_DEBUG, os.path.join(_pkg_dir, dist_name_debug),
+                            dirs_exist_ok=True)
+            package_data_patterns.append(f"{dist_name_debug}/**")
+
+        dist_name_debug_avx2 = "cbc_dist_debug_avx2"
+        if os.path.isdir(DIST_DIR_DEBUG_AVX2):
+            shutil.copytree(DIST_DIR_DEBUG_AVX2, os.path.join(_pkg_dir, dist_name_debug_avx2),
+                            dirs_exist_ok=True)
+            package_data_patterns.append(f"{dist_name_debug_avx2}/**")
 
         for fname in ["__init__.py", "__main__.py"]:
             shutil.copy2(os.path.join(THIS_DIR, "src", fname), os.path.join(_pkg_dir, fname))
