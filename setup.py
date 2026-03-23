@@ -698,26 +698,17 @@ _OPENBLAS_DYNLIST_X86_AVX2    = "HASWELL SKYLAKEX"
 # hand-optimised BLAS kernels; only the COIN-OR stack is instrumented.
 _debug_asan = platform.system() != "Windows"
 if _debug_asan:
-    _san_cflags  = " -fsanitize=address"
-    _san_ldflags = "-fsanitize=address"
-    if platform.system() == "Linux":
-        # autoconf configure scripts use LDFLAGS for their own link tests.
-        # If libasan is in a non-standard location (e.g. inside a devtoolset
-        # prefix), the linker cannot find it and configure exits 77 with
-        # "C compiler cannot create executables".  Ask the active GCC where it
-        # keeps its runtime libraries and add that directory to LDFLAGS.
-        for _libasan_name in ("libasan.so", "libasan.a"):
-            try:
-                _libasan_path = subprocess.check_output(
-                    ["gcc", f"--print-file-name={_libasan_name}"],
-                    text=True, stderr=subprocess.DEVNULL,
-                ).strip()
-                if _libasan_path and _libasan_path != _libasan_name:
-                    _san_ldflags += f" -L{os.path.dirname(_libasan_path)}"
-                    print(f"[cbcbox] libasan found: {_libasan_path}", flush=True)
-                    break
-            except Exception:
-                pass
+    _san_cflags = " -fsanitize=address"
+    # On Linux, do NOT put -fsanitize=address in LDFLAGS.
+    # autoconf configure scripts run their own C-compiler link tests using
+    # CC + LDFLAGS.  If LDFLAGS contains -fsanitize=address the linker tries
+    # to resolve libasan at that stage and fails with exit code 77 ("C compiler
+    # cannot create executables") — exactly the same issue described above for
+    # -no-undefined.  Keeping -fsanitize=address only in CXXFLAGS is sufficient:
+    # libtool passes CXXFLAGS to the link step (g++ $(CXXFLAGS) ... -shared),
+    # so GCC's own spec file handles finding and linking libasan automatically.
+    # On macOS, Clang bundles its ASan runtime and handles LDFLAGS just fine.
+    _san_ldflags = "" if platform.system() == "Linux" else "-fsanitize=address"
 else:
     _san_cflags  = ""
     _san_ldflags = ""
