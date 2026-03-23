@@ -65,7 +65,7 @@ jobs:
             -e CBCBOX_BUILD_ONLY=1 \
             quay.io/pypa/manylinux_2_28_aarch64 \
             bash -c 'export PATH=/opt/python/cp313-cp313/bin:$PATH &&
-                     yum install -y gcc-gfortran &&
+                     yum install -y gcc-gfortran libasan &&
                      pip install setuptools wheel patchelf &&
                      cd /project &&
                      python setup.py build_ext'
@@ -289,7 +289,7 @@ jobs:
             -e CBCBOX_BUILD_ONLY=1 \
             quay.io/pypa/manylinux_2_28_x86_64 \
             bash -c 'export PATH=/opt/python/cp313-cp313/bin:$PATH &&
-                     yum install -y gcc-gfortran &&
+                     yum install -y gcc-gfortran libasan &&
                      pip install setuptools wheel patchelf &&
                      cd /project &&
                      python setup.py build_ext'
