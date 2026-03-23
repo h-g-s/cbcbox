@@ -57,24 +57,29 @@ See also: [Windows AMD64 + macOS x86_64 summary](https://raw.githubusercontent.c
 
 ## Build variants
 
-On **x86_64 Linux, macOS, and Windows**, the wheel ships two complete sets of binaries:
+On **x86_64 Linux, macOS, and Windows**, the wheel ships three complete sets of binaries:
 
-| Variant | OpenBLAS kernel | Clp SIMD | Minimum CPU |
-|---|---|---|---|
-| `generic` | `DYNAMIC_ARCH=1` (runtime dispatch, Nehalem–Zen targets) | standard | any x86_64 |
-| `avx2` | `DYNAMIC_ARCH=1` + `DYNAMIC_LIST=HASWELL SKYLAKEX` | `-march=haswell -DCOIN_AVX2=4` | Haswell (2013+) |
+| Variant | OpenBLAS kernel | Clp SIMD | Flags | Minimum CPU |
+|---|---|---|---|---|
+| `generic` | `DYNAMIC_ARCH=1` (runtime dispatch, Nehalem–Zen targets) | standard | `-O3` | any x86_64 |
+| `avx2` | `DYNAMIC_ARCH=1` + `DYNAMIC_LIST=HASWELL SKYLAKEX` | `-march=haswell -DCOIN_AVX2=4` | `-O3 -march=haswell` | Haswell (2013+) |
+| `debug` | same as `avx2` on x86_64, `generic` elsewhere | same as `avx2` on x86_64 | `-O1 -g -fno-omit-frame-pointer` | same as `avx2` |
 
-At import time `cbcbox` automatically selects `avx2` when it is available **and**
-the running CPU supports AVX2; otherwise it falls back to `generic`.
+**Non-x86_64 platforms** (Linux aarch64, macOS arm64) ship `generic` and `debug` only.
 
-You can override this selection with the `CBCBOX_BUILD` environment variable:
+At import time `cbcbox` automatically selects `avx2` when available **and** the running CPU supports AVX2; otherwise it falls back to `generic`.
+
+You can override the selection with the `CBCBOX_BUILD` environment variable:
 
 ```bash
 # Force generic (portable) build
 CBCBOX_BUILD=generic cbc mymodel.mps -solve -quit
 
-# Force AVX2-optimised build (raises an error if not available)
+# Force AVX2-optimised build (raises an error if not available on this platform/CPU)
 CBCBOX_BUILD=avx2 cbc mymodel.mps -solve -quit
+
+# Force debug build (full symbols, no optimisation — useful for bug reports and GDB/LLDB)
+CBCBOX_BUILD=debug cbc mymodel.mps -solve -quit
 ```
 
 When `CBCBOX_BUILD` is set, a short summary of the selected build is printed to
@@ -87,9 +92,8 @@ stdout on every call — useful for tagging experiment results:
 [cbcbox]   libs    : libCbc.so.3, libClp.so.3, libopenblas.so.0
 ```
 
-> **Non-x86_64 platforms** (Linux aarch64, macOS arm64) ship the `generic`
-> build only.  `CBCBOX_BUILD=avx2` will raise a `RuntimeError` on those
-> platforms.
+Set `CBCBOX_VERBOSE=1` to always print this dispatch summary regardless of whether
+`CBCBOX_BUILD` is set — useful to confirm which binary is actually being invoked.
 
 ## Supported platforms
 
@@ -699,17 +703,15 @@ Several practical constraints shape the benchmark set:
 
 ## Local debug builds
 
-The released wheels are fully optimised and stripped.  To debug CBC itself
-(e.g. with GDB or LLDB), use the scripts in `scripts/` to build a local
-debug-enabled binary.  These produce the same full feature set as the release
-wheels (OpenBLAS, AMD, Nauty, pthreads) but compiled with `-O1 -g` and, on
-x86_64, with `-march=haswell -DCOIN_AVX2=4` so you can debug AVX2-specific
-code paths.
+The released wheels include an optimised build and a **debug build** (see
+[Build variants](#build-variants)).  For most debugging needs, `CBCBOX_BUILD=debug`
+is all you need.  If you want to rebuild with a sanitizer or need exact parity
+with the CI container, use the scripts in `scripts/`.
 
 | Script | Platform | Environment | Output directory |
 |---|---|---|---|
 | `scripts/build_debug.sh` | Linux, macOS | native (host compiler) | `cbc_dist_debug_avx2/` (x86_64) or `cbc_dist_debug/` (ARM64) |
-| `scripts/build_debug_manylinux.sh` | Linux | Docker — manylinux2014 container (exact CI parity) | same as above |
+| `scripts/build_debug_manylinux.sh` | Linux | Docker — manylinux_2_28 container (exact CI parity) | same as above |
 | `scripts/build_debug_windows.ps1` | Windows | MSYS2 / MinGW64 | `cbc_dist_debug_avx2\` |
 
 ### Quick start
@@ -721,7 +723,7 @@ code paths.
 # ARM64  → debug only  → cbc_dist_debug/bin/cbc
 ./scripts/build_debug.sh
 
-# With AddressSanitizer:
+# With AddressSanitizer (Linux/macOS only):
 ./scripts/build_debug.sh --asan
 
 # With ThreadSanitizer:
@@ -731,7 +733,7 @@ code paths.
 ./scripts/build_debug.sh --asan --clean
 ```
 
-**Linux (manylinux2014 container — matches CI exactly):**
+**Linux (manylinux_2_28 container — matches CI exactly):**
 
 ```bash
 # Requires Docker; the script prints install instructions if it is missing.
@@ -762,6 +764,10 @@ lldb cbc_dist_debug/bin/cbc
 
 ### Sanitizer tips
 
+> **Note:** The debug build shipped in the wheel does **not** include a sanitizer.
+> Use the local build scripts above (`--asan` / `--tsan`) on your development
+> machine to enable sanitizer instrumentation.
+
 | Sanitizer | Flag | What it catches | Runtime env var |
 |---|---|---|---|
 | AddressSanitizer | `--asan` | heap/stack buffer overflows, use-after-free, memory leaks | `ASAN_OPTIONS=detect_leaks=0` to suppress system-lib false positives |
@@ -773,9 +779,6 @@ linking mismatched object files.
 
 OpenBLAS is always built **without** sanitizer flags to avoid false positives
 from hand-optimised BLAS assembly; only the COIN-OR stack is instrumented.
-
-> **Note:** Debug binaries are not included in the published wheels because
-> of their size.  They are intended for local development only.
 
 ## License
 

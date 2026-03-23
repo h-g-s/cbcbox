@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # build_debug_manylinux.sh — Build a debug-enabled CBC binary inside a
-# manylinux2014 Docker container, matching the CI build environment exactly.
+# manylinux_2_28 Docker container, matching the CI build environment exactly.
 #
 # This is the recommended approach when you need the debug binary to be
 # ABI-compatible with the CI release wheels (e.g. for reproducing a bug that
@@ -9,12 +9,12 @@
 #
 # Variant selection (automatic, based on host architecture):
 #   x86_64  →  CBCBOX_BUILD_VARIANT=debug_avx2
-#               Container: quay.io/pypa/manylinux2014_x86_64
+#               Container: quay.io/pypa/manylinux_2_28_x86_64
 #               Flags: -O1 -g -march=haswell -DCOIN_AVX2=4
 #               Output: cbc_dist_debug_avx2/bin/cbc
 #
 #   aarch64 →  CBCBOX_BUILD_VARIANT=debug
-#               Container: quay.io/pypa/manylinux2014_aarch64
+#               Container: quay.io/pypa/manylinux_2_28_aarch64
 #               Flags: -O1 -g -fno-omit-frame-pointer
 #               Output: cbc_dist_debug/bin/cbc
 #
@@ -24,8 +24,7 @@
 # Usage:
 #   ./scripts/build_debug_manylinux.sh [--asan] [--tsan] [--clean]
 #
-#   --asan   Enable AddressSanitizer.  libasan is provided by the manylinux2014
-#            GCC toolchain on both architectures.
+#   --asan   Enable AddressSanitizer.
 #   --tsan   Enable ThreadSanitizer.
 #   --clean  Delete the output directory before building (force full rebuild).
 #            Always use --clean when switching sanitizers.
@@ -140,12 +139,12 @@ ARCH="$(uname -m)"
 case "$ARCH" in
     x86_64|amd64)
         VARIANT="debug_avx2"
-        IMAGE="quay.io/pypa/manylinux2014_x86_64"
+        IMAGE="quay.io/pypa/manylinux_2_28_x86_64"
         OUT_DIR="$REPO_ROOT/cbc_dist_debug_avx2"
         ;;
     aarch64|arm64)
         VARIANT="debug"
-        IMAGE="quay.io/pypa/manylinux2014_aarch64"
+        IMAGE="quay.io/pypa/manylinux_2_28_aarch64"
         OUT_DIR="$REPO_ROOT/cbc_dist_debug"
         ;;
     *)
@@ -155,7 +154,7 @@ case "$ARCH" in
         ;;
 esac
 
-echo "==> cbcbox debug build (manylinux2014 container)"
+echo "==> cbcbox debug build (manylinux_2_28 container)"
 echo "    Arch:      $ARCH"
 echo "    Variant:   $VARIANT"
 echo "    Sanitizer: ${SANITIZE:-none}"

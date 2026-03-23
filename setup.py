@@ -696,45 +696,13 @@ _OPENBLAS_DYNLIST_X86_AVX2    = "HASWELL SKYLAKEX"
 # Windows/MinGW does not support ASan, so it is skipped there.
 # OpenBLAS is always built without ASan to avoid false positives from its
 # hand-optimised BLAS kernels; only the COIN-OR stack is instrumented.
-_debug_asan = platform.system() != "Windows"
-if _debug_asan:
-    _san_cflags = " -fsanitize=address"
-    if platform.system() == "Linux":
-        # CXXFLAGS carries -fsanitize=address, which causes ALL configure test
-        # programs compiled as C++ (including the LAPACK link test) to require
-        # the ASan runtime library.  We must NOT put -fsanitize=address itself
-        # in LDFLAGS — that breaks the basic "C compiler works" test (exit 77,
-        # documented above for -no-undefined).  Instead, we only add -L<dir> to
-        # LDFLAGS so the linker can find libasan when GCC's spec file injects
-        # -lasan during the C++ configure tests.
-        _san_ldflags = ""
-        for _libasan_name in ("libasan.so", "libasan.a"):
-            try:
-                _libasan_path = subprocess.check_output(
-                    ["gcc", f"--print-file-name={_libasan_name}"],
-                    text=True, stderr=subprocess.DEVNULL,
-                ).strip()
-                if _libasan_path and _libasan_path != _libasan_name and os.path.isfile(_libasan_path):
-                    _san_ldflags = f"-L{os.path.dirname(_libasan_path)}"
-                    print(f"[cbcbox] libasan found: {_libasan_path}", flush=True)
-                    break
-            except Exception:
-                pass
-    else:
-        # macOS: Clang bundles its ASan runtime; putting -fsanitize=address in
-        # LDFLAGS is fine and already works.
-        _san_ldflags = "-fsanitize=address"
-else:
-    _san_cflags  = ""
-    _san_ldflags = ""
-
-# Debug build flags: -O1 -g + ASan on non-Windows.
-_DEBUG_CFLAGS  = f"-O1 -g -fno-omit-frame-pointer{_san_cflags}"
-_DEBUG_LDFLAGS = _san_ldflags
-
-# Debug+AVX2 flags: same debug flags plus -march=haswell.
-_DEBUG_AVX2_CFLAGS  = f"-O1 -g -march=haswell -fno-omit-frame-pointer{_san_cflags}"
-_DEBUG_AVX2_LDFLAGS = _san_ldflags
+# Debug build flags: -O1 -g (no ASan — ASan proved too fragile across
+# the different CI container toolchains; debug info alone is sufficient
+# for stack traces and debugger use).
+_DEBUG_CFLAGS      = "-O1 -g -fno-omit-frame-pointer"
+_DEBUG_LDFLAGS     = ""
+_DEBUG_AVX2_CFLAGS  = "-O1 -g -march=haswell -fno-omit-frame-pointer"
+_DEBUG_AVX2_LDFLAGS = ""
 
 if _build_generic and not os.path.exists(os.path.join(DIST_DIR, "bin", _cbc_exe)):
     build_openblas(DIST_DIR, dynamic_arch=True,
