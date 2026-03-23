@@ -41,7 +41,7 @@ or separate installation steps are needed.
 
 <!-- PERF_SPEEDUP_START -->
 
-The AVX2/Haswell build is **~3.1×** faster than the generic build on average (geometric mean across 30 instances, 2 x86_64 platforms: Darwin x86_64, Windows AMD64).
+The AVX2/Haswell build is **~3.1×** faster than the generic build on average (geometric mean across 30 instances, 3 x86_64 platforms: Darwin x86_64, Linux x86_64, Windows AMD64).
 
 <!-- PERF_SPEEDUP_END -->
 
@@ -355,17 +355,21 @@ Geometric mean solve time (seconds) across all test instances.
 
 | Platform | generic (s) | avx2 (s) | avx2 speedup |
 |---|---|---|---|
-| Darwin x86_64 | 67.39 | 19.86 | 3.39× |
-| Darwin arm64 | 42.57 | — | — |
-| Windows AMD64 | 60.72 | 21.99 | 2.76× |
+| Linux aarch64 | 52.98 | — | — |
+| Darwin x86_64 | 72.85 | 27.26 | 2.67× |
+| Darwin arm64 | 54.69 | — | — |
+| Linux x86_64 | 59.52 | 17.09 | 3.48× |
+| Windows AMD64 | 61.59 | 19.06 | 3.23× |
 
 ### 3 threads
 
 | Platform | generic (s) | avx2 (s) | avx2 speedup |
 |---|---|---|---|
-| Darwin x86_64 | 54.21 | 18.85 | 2.88× |
-| Darwin arm64 | 38.90 | — | — |
-| Windows AMD64 | 50.92 | 20.93 | 2.43× |
+| Linux aarch64 | 40.73 | — | — |
+| Darwin x86_64 | 67.40 | 22.71 | 2.97× |
+| Darwin arm64 | 39.34 | — | — |
+| Linux x86_64 | 47.96 | 15.86 | 3.02× |
+| Windows AMD64 | 48.89 | 17.45 | 2.80× |
 
 ## Per-instance results
 
@@ -373,301 +377,391 @@ Geometric mean solve time (seconds) across all test instances.
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 4.56 | 14.31 | 0.32× |
-| Darwin x86_64 | generic | 9.79 | 13.96 | 0.70× |
-| Darwin arm64 | generic | 9.64 | 23.03 | 0.42× |
-| Windows AMD64 | avx2 | 5.28 | 16.80 | 0.31× |
-| Windows AMD64 | generic | 12.68 | 21.63 | 0.59× |
+| Linux aarch64 | generic | 8.98 | 5.96 | 1.51× |
+| Darwin x86_64 | avx2 | 5.33 | 12.95 | 0.41× |
+| Darwin x86_64 | generic | 10.03 | 8.60 | 1.17× |
+| Darwin arm64 | generic | 9.65 | 15.02 | 0.64× |
+| Linux x86_64 | avx2 | 4.61 | 8.24 | 0.56× |
+| Linux x86_64 | generic | 9.86 | 8.19 | 1.20× |
+| Windows AMD64 | avx2 | 4.89 | 8.37 | 0.58× |
+| Windows AMD64 | generic | 13.25 | 21.99 | 0.60× |
 
 ### `sprint_hidden06_j`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 45.63 | 50.97 | 0.90× |
-| Darwin x86_64 | generic | 191.76 | 210.65 | 0.91× |
-| Darwin arm64 | generic | 130.45 | 118.53 | 1.10× |
-| Windows AMD64 | avx2 | 92.81 | 105.48 | 0.88× |
-| Windows AMD64 | generic | 240.15 | 216.40 | 1.11× |
+| Linux aarch64 | generic | 219.32 | 201.59 | 1.09× |
+| Darwin x86_64 | avx2 | 54.63 | 59.66 | 0.92× |
+| Darwin x86_64 | generic | 188.06 | 195.44 | 0.96× |
+| Darwin arm64 | generic | 143.47 | 129.41 | 1.11× |
+| Linux x86_64 | avx2 | 57.78 | 56.57 | 1.02× |
+| Linux x86_64 | generic | 236.53 | 209.44 | 1.13× |
+| Windows AMD64 | avx2 | 57.61 | 56.22 | 1.02× |
+| Windows AMD64 | generic | 252.26 | 240.40 | 1.05× |
 
 ### `air03`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 1.64 | 1.67 | 0.98× |
-| Darwin x86_64 | generic | 7.16 | 7.02 | 1.02× |
-| Darwin arm64 | generic | 4.16 | 3.96 | 1.05× |
-| Windows AMD64 | avx2 | 2.92 | 3.16 | 0.92× |
-| Windows AMD64 | generic | 7.26 | 6.12 | 1.19× |
+| Linux aarch64 | generic | 5.42 | 5.58 | 0.97× |
+| Darwin x86_64 | avx2 | 1.82 | 2.09 | 0.87× |
+| Darwin x86_64 | generic | 6.76 | 7.21 | 0.94× |
+| Darwin arm64 | generic | 5.35 | 4.74 | 1.13× |
+| Linux x86_64 | avx2 | 1.97 | 2.08 | 0.95× |
+| Linux x86_64 | generic | 6.38 | 6.64 | 0.96× |
+| Windows AMD64 | avx2 | 2.33 | 2.38 | 0.98× |
+| Windows AMD64 | generic | 6.03 | 6.04 | 1.00× |
 
 ### `air04`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 50.07 | 36.58 | 1.37× |
-| Darwin x86_64 | generic | 131.19 | 77.70 | 1.69× |
-| Darwin arm64 | generic | 109.12 | 82.09 | 1.33× |
-| Windows AMD64 | avx2 | 43.02 | 38.17 | 1.13× |
-| Windows AMD64 | generic | 168.05 | 88.42 | 1.90× |
+| Linux aarch64 | generic | 138.44 | 76.63 | 1.81× |
+| Darwin x86_64 | avx2 | 58.68 | 45.86 | 1.28× |
+| Darwin x86_64 | generic | 132.92 | 91.59 | 1.45× |
+| Darwin arm64 | generic | 138.82 | 90.52 | 1.53× |
+| Linux x86_64 | avx2 | 34.53 | 25.87 | 1.33× |
+| Linux x86_64 | generic | 152.11 | 120.46 | 1.26× |
+| Windows AMD64 | avx2 | 32.67 | 26.58 | 1.23× |
+| Windows AMD64 | generic | 156.55 | 104.76 | 1.49× |
 
 ### `air05`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 23.50 | 18.05 | 1.30× |
-| Darwin x86_64 | generic | 64.27 | 44.90 | 1.43× |
-| Darwin arm64 | generic | 49.46 | 34.84 | 1.42× |
-| Windows AMD64 | avx2 | 21.34 | 19.60 | 1.09× |
-| Windows AMD64 | generic | 56.56 | 44.95 | 1.26× |
+| Linux aarch64 | generic | 50.11 | 33.70 | 1.49× |
+| Darwin x86_64 | avx2 | 27.44 | 21.02 | 1.31× |
+| Darwin x86_64 | generic | 63.93 | 48.87 | 1.31× |
+| Darwin arm64 | generic | 61.63 | 42.73 | 1.44× |
+| Linux x86_64 | avx2 | 14.67 | 12.58 | 1.17× |
+| Linux x86_64 | generic | 56.35 | 43.78 | 1.29× |
+| Windows AMD64 | avx2 | 17.47 | 13.15 | 1.33× |
+| Windows AMD64 | generic | 58.44 | 41.16 | 1.42× |
 
 ### `nw04`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 12.22 | 12.67 | 0.96× |
-| Darwin x86_64 | generic | 41.82 | 37.00 | 1.13× |
-| Darwin arm64 | generic | 35.10 | 34.24 | 1.03× |
-| Windows AMD64 | avx2 | 17.35 | 19.93 | 0.87× |
-| Windows AMD64 | generic | 64.80 | 60.02 | 1.08× |
+| Linux aarch64 | generic | 39.52 | 40.37 | 0.98× |
+| Darwin x86_64 | avx2 | 14.46 | 15.96 | 0.91× |
+| Darwin x86_64 | generic | 40.08 | 43.30 | 0.93× |
+| Darwin arm64 | generic | 44.72 | 38.11 | 1.17× |
+| Linux x86_64 | avx2 | 12.16 | 12.82 | 0.95× |
+| Linux x86_64 | generic | 66.09 | 68.48 | 0.97× |
+| Windows AMD64 | avx2 | 15.22 | 16.91 | 0.90× |
+| Windows AMD64 | generic | 57.66 | 53.00 | 1.09× |
 
 ### `mzzv11`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 119.35 | 71.43 | 1.67× |
-| Darwin x86_64 | generic | 603.41 | 330.88 | 1.82× |
-| Darwin arm64 | generic | 246.59 | 184.16 | 1.34× |
-| Windows AMD64 | avx2 | 132.51 | 158.80 | 0.83× |
-| Windows AMD64 | generic | 251.46 | 246.21 | 1.02× |
+| Linux aarch64 | generic | 209.51 | 178.79 | 1.17× |
+| Darwin x86_64 | avx2 | 142.69 | 107.88 | 1.32× |
+| Darwin x86_64 | generic | 563.67 | 402.36 | 1.40× |
+| Darwin arm64 | generic | 361.95 | 184.07 | 1.97× |
+| Linux x86_64 | avx2 | 132.92 | 110.15 | 1.21× |
+| Linux x86_64 | generic | 223.60 | 220.77 | 1.01× |
+| Windows AMD64 | avx2 | 118.66 | 273.98 | 0.43× |
+| Windows AMD64 | generic | 260.18 | 273.12 | 0.95× |
 
 ### `trd445c`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 103.11 | 96.67 | 1.07× |
-| Darwin x86_64 | generic | 311.17 | 199.63 | 1.56× |
-| Darwin arm64 | generic | 170.21 | 187.60 | 0.91× |
-| Windows AMD64 | avx2 | 113.35 | 137.32 | 0.83× |
-| Windows AMD64 | generic | 221.54 | 222.21 | 1.00× |
+| Linux aarch64 | generic | 205.09 | 201.74 | 1.02× |
+| Darwin x86_64 | avx2 | 144.69 | 125.00 | 1.16× |
+| Darwin x86_64 | generic | 267.36 | 240.76 | 1.11× |
+| Darwin arm64 | generic | 260.16 | 187.51 | 1.39× |
+| Linux x86_64 | avx2 | 88.02 | 82.22 | 1.07× |
+| Linux x86_64 | generic | 233.40 | 231.05 | 1.01× |
+| Windows AMD64 | avx2 | 100.34 | 118.72 | 0.85× |
+| Windows AMD64 | generic | 241.71 | 230.01 | 1.05× |
 
 ### `nursesched-sprint02`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 29.77 | 31.22 | 0.95× |
-| Darwin x86_64 | generic | 113.48 | 89.04 | 1.27× |
-| Darwin arm64 | generic | 83.63 | 89.22 | 0.94× |
-| Windows AMD64 | avx2 | 37.79 | 37.74 | 1.00× |
-| Windows AMD64 | generic | 105.93 | 78.02 | 1.36× |
+| Linux aarch64 | generic | 97.91 | 72.49 | 1.35× |
+| Darwin x86_64 | avx2 | 46.73 | 38.85 | 1.20× |
+| Darwin x86_64 | generic | 103.80 | 113.20 | 0.92× |
+| Darwin arm64 | generic | 106.90 | 92.77 | 1.15× |
+| Linux x86_64 | avx2 | 26.56 | 25.65 | 1.04× |
+| Linux x86_64 | generic | 108.79 | 80.85 | 1.35× |
+| Windows AMD64 | avx2 | 26.92 | 27.22 | 0.99× |
+| Windows AMD64 | generic | 114.48 | 84.13 | 1.36× |
 
 ### `stein45`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 8.46 | 8.50 | 1.00× |
-| Darwin x86_64 | generic | 28.23 | 15.72 | 1.80× |
-| Darwin arm64 | generic | 17.92 | 10.28 | 1.74× |
-| Windows AMD64 | avx2 | 8.70 | 8.09 | 1.08× |
-| Windows AMD64 | generic | 26.16 | 16.61 | 1.57× |
+| Linux aarch64 | generic | 23.78 | 12.87 | 1.85× |
+| Darwin x86_64 | avx2 | 12.84 | 9.34 | 1.38× |
+| Darwin x86_64 | generic | 28.99 | 20.40 | 1.42× |
+| Darwin arm64 | generic | 23.43 | 10.49 | 2.23× |
+| Linux x86_64 | avx2 | 8.21 | 6.22 | 1.32× |
+| Linux x86_64 | generic | 26.86 | 17.07 | 1.57× |
+| Windows AMD64 | avx2 | 8.69 | 6.48 | 1.34× |
+| Windows AMD64 | generic | 26.83 | 16.90 | 1.59× |
 
 ### `neos-810286`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 12.21 | 12.89 | 0.95× |
-| Darwin x86_64 | generic | 47.65 | 38.81 | 1.23× |
-| Darwin arm64 | generic | 23.70 | 23.92 | 0.99× |
-| Windows AMD64 | avx2 | 16.33 | 15.49 | 1.05× |
-| Windows AMD64 | generic | 34.23 | 44.68 | 0.77× |
+| Linux aarch64 | generic | 33.26 | 31.41 | 1.06× |
+| Darwin x86_64 | avx2 | 21.28 | 15.24 | 1.40× |
+| Darwin x86_64 | generic | 49.54 | 66.50 | 0.74× |
+| Darwin arm64 | generic | 43.54 | 26.10 | 1.67× |
+| Linux x86_64 | avx2 | 20.31 | 19.81 | 1.02× |
+| Linux x86_64 | generic | 35.79 | 36.05 | 0.99× |
+| Windows AMD64 | avx2 | 13.59 | 12.31 | 1.10× |
+| Windows AMD64 | generic | 36.04 | 47.35 | 0.76× |
 
 ### `neos-1281048`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 17.98 | 7.39 | 2.43× |
-| Darwin x86_64 | generic | 128.26 | 16.92 | 7.58× |
-| Darwin arm64 | generic | 36.47 | 16.08 | 2.27× |
-| Windows AMD64 | avx2 | 14.38 | 16.22 | 0.89× |
-| Windows AMD64 | generic | 36.21 | 26.19 | 1.38× |
+| Linux aarch64 | generic | 31.34 | 17.91 | 1.75× |
+| Darwin x86_64 | avx2 | 25.75 | 8.94 | 2.88× |
+| Darwin x86_64 | generic | 133.60 | 28.41 | 4.70× |
+| Darwin arm64 | generic | 46.41 | 19.43 | 2.39× |
+| Linux x86_64 | avx2 | 20.84 | 10.03 | 2.08× |
+| Linux x86_64 | generic | 33.44 | 22.10 | 1.51× |
+| Windows AMD64 | avx2 | 13.55 | 6.63 | 2.04× |
+| Windows AMD64 | generic | 36.78 | 20.54 | 1.79× |
 
 ### `j3050_8`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 3.86 | 3.31 | 1.16× |
-| Darwin x86_64 | generic | 7.21 | 7.23 | 1.00× |
-| Darwin arm64 | generic | 7.01 | 6.28 | 1.12× |
-| Windows AMD64 | avx2 | 2.30 | 2.54 | 0.91× |
-| Windows AMD64 | generic | 7.99 | 6.87 | 1.16× |
+| Linux aarch64 | generic | 6.06 | 6.08 | 1.00× |
+| Darwin x86_64 | avx2 | 5.82 | 4.04 | 1.44× |
+| Darwin x86_64 | generic | 8.27 | 12.85 | 0.64× |
+| Darwin arm64 | generic | 9.18 | 7.26 | 1.26× |
+| Linux x86_64 | avx2 | 2.25 | 2.11 | 1.06× |
+| Linux x86_64 | generic | 6.90 | 6.93 | 1.00× |
+| Windows AMD64 | avx2 | 2.10 | 2.40 | 0.88× |
+| Windows AMD64 | generic | 8.49 | 6.61 | 1.28× |
 
 ### `qiu`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 42.31 | 13.36 | 3.17× |
-| Darwin x86_64 | generic | 73.65 | 24.51 | 3.01× |
-| Darwin arm64 | generic | 80.63 | 29.20 | 2.76× |
-| Windows AMD64 | avx2 | 25.37 | 12.46 | 2.04× |
-| Windows AMD64 | generic | 79.29 | 39.26 | 2.02× |
+| Linux aarch64 | generic | 59.36 | 21.51 | 2.76× |
+| Darwin x86_64 | avx2 | 62.75 | 16.70 | 3.76× |
+| Darwin x86_64 | generic | 74.33 | 46.84 | 1.59× |
+| Darwin arm64 | generic | 112.12 | 32.58 | 3.44× |
+| Linux x86_64 | avx2 | 33.85 | 18.23 | 1.86× |
+| Linux x86_64 | generic | 62.05 | 31.25 | 1.99× |
+| Windows AMD64 | avx2 | 23.96 | 11.90 | 2.01× |
+| Windows AMD64 | generic | 82.61 | 39.47 | 2.09× |
 
 ### `gesa2-o`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 4.70 | 4.41 | 1.07× |
-| Darwin x86_64 | generic | 13.09 | 9.43 | 1.39× |
-| Darwin arm64 | generic | 8.70 | 7.42 | 1.17× |
-| Windows AMD64 | avx2 | 3.67 | 3.58 | 1.03× |
-| Windows AMD64 | generic | 10.95 | 11.59 | 0.95× |
+| Linux aarch64 | generic | 10.13 | 9.02 | 1.12× |
+| Darwin x86_64 | avx2 | 6.87 | 5.49 | 1.25× |
+| Darwin x86_64 | generic | 14.82 | 15.97 | 0.93× |
+| Darwin arm64 | generic | 12.97 | 11.25 | 1.15× |
+| Linux x86_64 | avx2 | 3.28 | 3.25 | 1.01× |
+| Linux x86_64 | generic | 11.08 | 10.41 | 1.06× |
+| Windows AMD64 | avx2 | 3.34 | 3.32 | 1.01× |
+| Windows AMD64 | generic | 11.07 | 12.77 | 0.87× |
 
 ### `pk1`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 33.49 | 41.33 | 0.81× |
-| Darwin x86_64 | generic | 98.88 | 57.22 | 1.73× |
-| Darwin arm64 | generic | 65.84 | 40.55 | 1.62× |
-| Windows AMD64 | avx2 | 37.23 | 30.55 | 1.22× |
-| Windows AMD64 | generic | 97.32 | 59.97 | 1.62× |
+| Linux aarch64 | generic | 88.00 | 47.13 | 1.87× |
+| Darwin x86_64 | avx2 | 48.28 | 44.10 | 1.09× |
+| Darwin x86_64 | generic | 104.16 | 116.29 | 0.90× |
+| Darwin arm64 | generic | 93.35 | 67.55 | 1.38× |
+| Linux x86_64 | avx2 | 34.55 | 23.52 | 1.47× |
+| Linux x86_64 | generic | 100.80 | 60.28 | 1.67× |
+| Windows AMD64 | avx2 | 33.12 | 27.94 | 1.19× |
+| Windows AMD64 | generic | 104.58 | 65.38 | 1.60× |
 
 ### `mas76`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 17.79 | 51.58 | 0.34× |
-| Darwin x86_64 | generic | 64.89 | 63.74 | 1.02× |
-| Darwin arm64 | generic | 40.24 | 39.83 | 1.01× |
-| Windows AMD64 | avx2 | 20.57 | 37.33 | 0.55× |
-| Windows AMD64 | generic | 46.98 | 55.66 | 0.84× |
+| Linux aarch64 | generic | 47.85 | 53.99 | 0.89× |
+| Darwin x86_64 | avx2 | 30.32 | 48.81 | 0.62× |
+| Darwin x86_64 | generic | 61.46 | 73.93 | 0.83× |
+| Darwin arm64 | generic | 52.13 | 53.72 | 0.97× |
+| Linux x86_64 | avx2 | 19.86 | 29.39 | 0.68× |
+| Linux x86_64 | generic | 49.87 | 59.39 | 0.84× |
+| Windows AMD64 | avx2 | 19.20 | 32.07 | 0.60× |
+| Windows AMD64 | generic | 66.20 | 80.92 | 0.82× |
 
 ### `app1-1`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 5.65 | 7.48 | 0.76× |
-| Darwin x86_64 | generic | 783.14 | 711.91 | 1.10× |
-| Darwin arm64 | generic | 12.95 | 176.54 | 0.07× |
-| Windows AMD64 | avx2 | 22.73 | 7.24 | 3.14× |
-| Windows AMD64 | generic | 88.35 | 35.52 | 2.49× |
+| Linux aarch64 | generic | 36.75 | 53.00 | 0.69× |
+| Darwin x86_64 | avx2 | 9.23 | 9.62 | 0.96× |
+| Darwin x86_64 | generic | 913.11 | 715.69 | 1.28× |
+| Darwin arm64 | generic | 16.55 | 17.46 | 0.95× |
+| Linux x86_64 | avx2 | 9.76 | 9.24 | 1.06× |
+| Linux x86_64 | generic | 38.59 | 39.10 | 0.99× |
+| Windows AMD64 | avx2 | 20.15 | 17.63 | 1.14× |
+| Windows AMD64 | generic | 83.34 | 23.11 | 3.61× |
 
 ### `eil33-2`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 37.48 | 22.29 | 1.68× |
-| Darwin x86_64 | generic | 173.65 | 88.02 | 1.97× |
-| Darwin arm64 | generic | 109.19 | 61.54 | 1.77× |
-| Windows AMD64 | avx2 | 46.41 | 23.86 | 1.95× |
-| Windows AMD64 | generic | 153.49 | 64.35 | 2.39× |
+| Linux aarch64 | generic | 137.01 | 54.49 | 2.51× |
+| Darwin x86_64 | avx2 | 55.30 | 23.23 | 2.38× |
+| Darwin x86_64 | generic | 192.80 | 90.79 | 2.12× |
+| Darwin arm64 | generic | 144.08 | 69.00 | 2.09× |
+| Linux x86_64 | avx2 | 48.54 | 21.04 | 2.31× |
+| Linux x86_64 | generic | 160.14 | 73.65 | 2.17× |
+| Windows AMD64 | avx2 | 30.29 | 17.76 | 1.71× |
+| Windows AMD64 | generic | 167.62 | 69.47 | 2.41× |
 
 ### `fiber`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 1.14 | 1.41 | 0.81× |
-| Darwin x86_64 | generic | 7.94 | 7.55 | 1.05× |
-| Darwin arm64 | generic | 1.89 | 2.17 | 0.87× |
-| Windows AMD64 | avx2 | 2.14 | 2.28 | 0.94× |
-| Windows AMD64 | generic | 3.73 | 4.03 | 0.92× |
+| Linux aarch64 | generic | 4.35 | 4.49 | 0.97× |
+| Darwin x86_64 | avx2 | 1.72 | 1.41 | 1.22× |
+| Darwin x86_64 | generic | 8.12 | 9.33 | 0.87× |
+| Darwin arm64 | generic | 2.10 | 2.58 | 0.81× |
+| Linux x86_64 | avx2 | 0.75 | 0.77 | 0.97× |
+| Linux x86_64 | generic | 4.96 | 5.21 | 0.95× |
+| Windows AMD64 | avx2 | 1.88 | 2.04 | 0.92× |
+| Windows AMD64 | generic | 3.85 | 4.15 | 0.93× |
 
 ### `neos-2987310-joes`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 21.51 | 22.21 | 0.97× |
-| Darwin x86_64 | generic | 130.41 | 114.65 | 1.14× |
-| Darwin arm64 | generic | 76.45 | 84.96 | 0.90× |
-| Windows AMD64 | avx2 | 26.53 | 26.95 | 0.98× |
-| Windows AMD64 | generic | 87.48 | 88.10 | 0.99× |
+| Linux aarch64 | generic | 98.08 | 98.28 | 1.00× |
+| Darwin x86_64 | avx2 | 34.69 | 27.83 | 1.25× |
+| Darwin x86_64 | generic | 159.00 | 141.37 | 1.12× |
+| Darwin arm64 | generic | 94.24 | 93.86 | 1.00× |
+| Linux x86_64 | avx2 | 20.57 | 20.74 | 0.99× |
+| Linux x86_64 | generic | 126.02 | 126.24 | 1.00× |
+| Windows AMD64 | avx2 | 24.61 | 25.05 | 0.98× |
+| Windows AMD64 | generic | 72.21 | 72.44 | 1.00× |
 
 ### `neos-827175`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 15.41 | 16.80 | 0.92× |
-| Darwin x86_64 | generic | 52.55 | 43.87 | 1.20× |
-| Darwin arm64 | generic | 30.44 | 34.56 | 0.88× |
-| Windows AMD64 | avx2 | 12.35 | 12.69 | 0.97× |
-| Windows AMD64 | generic | 44.98 | 45.49 | 0.99× |
+| Linux aarch64 | generic | 43.17 | 43.60 | 0.99× |
+| Darwin x86_64 | avx2 | 23.75 | 20.35 | 1.17× |
+| Darwin x86_64 | generic | 66.44 | 55.40 | 1.20× |
+| Darwin arm64 | generic | 45.20 | 37.10 | 1.22× |
+| Linux x86_64 | avx2 | 14.20 | 14.48 | 0.98× |
+| Linux x86_64 | generic | 45.12 | 45.75 | 0.99× |
+| Windows AMD64 | avx2 | 12.19 | 12.52 | 0.97× |
+| Windows AMD64 | generic | 39.43 | 39.47 | 1.00× |
 
 ### `neos-3083819-nubu`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 21.32 | 13.75 | 1.55× |
-| Darwin x86_64 | generic | 51.11 | 59.61 | 0.86× |
-| Darwin arm64 | generic | 38.45 | 17.00 | 2.26× |
-| Windows AMD64 | avx2 | 45.23 | 11.32 | 4.00× |
-| Windows AMD64 | generic | 212.22 | 68.76 | 3.09× |
+| Linux aarch64 | generic | 188.23 | 45.90 | 4.10× |
+| Darwin x86_64 | avx2 | 31.78 | 18.57 | 1.71× |
+| Darwin x86_64 | generic | 70.04 | 77.35 | 0.91× |
+| Darwin arm64 | generic | 57.66 | 22.28 | 2.59× |
+| Linux x86_64 | avx2 | 11.51 | 14.95 | 0.77× |
+| Linux x86_64 | generic | 208.45 | 19.64 | 10.61× |
+| Windows AMD64 | avx2 | 40.11 | 6.92 | 5.80× |
+| Windows AMD64 | generic | 211.01 | 70.89 | 2.98× |
 
 ### `markshare_4_0`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 22.44 | 226.64 | 0.10× |
-| Darwin x86_64 | generic | 61.35 | 224.74 | 0.27× |
-| Darwin arm64 | generic | 28.79 | 98.61 | 0.29× |
-| Windows AMD64 | avx2 | 20.00 | 92.47 | 0.22× |
-| Windows AMD64 | generic | 54.14 | 144.59 | 0.37× |
+| Linux aarch64 | generic | 47.92 | 124.34 | 0.39× |
+| Darwin x86_64 | avx2 | 35.31 | 269.92 | 0.13× |
+| Darwin x86_64 | generic | 81.41 | 241.70 | 0.34× |
+| Darwin arm64 | generic | 38.44 | 108.59 | 0.35× |
+| Linux x86_64 | avx2 | 18.16 | 77.15 | 0.24× |
+| Linux x86_64 | generic | 62.52 | 92.61 | 0.68× |
+| Windows AMD64 | avx2 | 21.04 | 115.80 | 0.18× |
+| Windows AMD64 | generic | 67.43 | 160.21 | 0.42× |
 
 ### `irp`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 9.63 | 10.64 | 0.90× |
-| Darwin x86_64 | generic | 45.45 | 41.02 | 1.11× |
-| Darwin arm64 | generic | 35.10 | 39.35 | 0.89× |
-| Windows AMD64 | avx2 | 13.23 | 12.71 | 1.04× |
-| Windows AMD64 | generic | 29.06 | 29.45 | 0.99× |
+| Linux aarch64 | generic | 30.65 | 30.64 | 1.00× |
+| Darwin x86_64 | avx2 | 14.35 | 12.26 | 1.17× |
+| Darwin x86_64 | generic | 54.20 | 53.17 | 1.02× |
+| Darwin arm64 | generic | 42.20 | 39.06 | 1.08× |
+| Linux x86_64 | avx2 | 7.96 | 7.62 | 1.04× |
+| Linux x86_64 | generic | 38.45 | 39.07 | 0.98× |
+| Windows AMD64 | avx2 | 11.03 | 11.00 | 1.00× |
+| Windows AMD64 | generic | 30.10 | 30.68 | 0.98× |
 
 ### `qap10`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 42.52 | 29.48 | 1.44× |
-| Darwin x86_64 | generic | 164.82 | 117.94 | 1.40× |
-| Darwin arm64 | generic | 91.68 | 66.07 | 1.39× |
-| Windows AMD64 | avx2 | 68.45 | 38.06 | 1.80× |
-| Windows AMD64 | generic | 145.81 | 118.94 | 1.23× |
+| Linux aarch64 | generic | 159.53 | 77.06 | 2.07× |
+| Darwin x86_64 | avx2 | 57.51 | 33.88 | 1.70× |
+| Darwin x86_64 | generic | 199.56 | 134.52 | 1.48× |
+| Darwin arm64 | generic | 110.79 | 62.98 | 1.76× |
+| Linux x86_64 | avx2 | 61.61 | 33.53 | 1.84× |
+| Linux x86_64 | generic | 144.11 | 120.46 | 1.20× |
+| Windows AMD64 | avx2 | 62.81 | 34.48 | 1.82× |
+| Windows AMD64 | generic | 151.13 | 117.36 | 1.29× |
 
 ### `swath1`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 63.11 | 21.33 | 2.96× |
-| Darwin x86_64 | generic | 28.42 | 34.76 | 0.82× |
-| Darwin arm64 | generic | 124.46 | 38.32 | 3.25× |
-| Windows AMD64 | avx2 | 32.41 | 17.09 | 1.90× |
-| Windows AMD64 | generic | 127.63 | 83.41 | 1.53× |
+| Linux aarch64 | generic | 79.34 | 34.76 | 2.28× |
+| Darwin x86_64 | avx2 | 82.60 | 29.06 | 2.84× |
+| Darwin x86_64 | generic | 33.56 | 43.60 | 0.77× |
+| Darwin arm64 | generic | 139.90 | 28.23 | 4.96× |
+| Linux x86_64 | avx2 | 26.30 | 13.83 | 1.90× |
+| Linux x86_64 | generic | 85.88 | 59.63 | 1.44× |
+| Windows AMD64 | avx2 | 27.41 | 10.67 | 2.57× |
+| Windows AMD64 | generic | 122.79 | 34.24 | 3.59× |
 
 ### `physiciansched6-2`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 39.54 | 41.08 | 0.96× |
-| Darwin x86_64 | generic | 109.40 | 130.83 | 0.84× |
-| Darwin arm64 | generic | 75.24 | 74.63 | 1.01× |
-| Windows AMD64 | avx2 | 50.83 | 51.12 | 0.99× |
-| Windows AMD64 | generic | 89.41 | 89.86 | 0.99× |
+| Linux aarch64 | generic | 81.77 | 83.47 | 0.98× |
+| Darwin x86_64 | avx2 | 47.12 | 51.37 | 0.92× |
+| Darwin x86_64 | generic | 126.55 | 147.75 | 0.86× |
+| Darwin arm64 | generic | 81.17 | 70.84 | 1.15× |
+| Linux x86_64 | avx2 | 33.94 | 33.62 | 1.01× |
+| Linux x86_64 | generic | 88.93 | 91.72 | 0.97× |
+| Windows AMD64 | avx2 | 47.12 | 47.68 | 0.99× |
+| Windows AMD64 | generic | 89.07 | 88.35 | 1.01× |
 
 ### `mzzv42z`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 107.38 | 109.24 | 0.98× |
-| Darwin x86_64 | generic | 141.13 | 181.26 | 0.78× |
-| Darwin arm64 | generic | 223.94 | 231.93 | 0.97× |
-| Windows AMD64 | avx2 | 63.32 | 58.92 | 1.07× |
-| Windows AMD64 | generic | 134.75 | 133.99 | 1.01× |
+| Linux aarch64 | generic | 186.91 | 186.79 | 1.00× |
+| Darwin x86_64 | avx2 | 125.58 | 135.01 | 0.93× |
+| Darwin x86_64 | generic | 171.29 | 188.90 | 0.91× |
+| Darwin arm64 | generic | 254.53 | 239.76 | 1.06× |
+| Linux x86_64 | avx2 | 46.40 | 47.05 | 0.99× |
+| Linux x86_64 | generic | 202.40 | 201.08 | 1.01× |
+| Windows AMD64 | avx2 | 53.66 | 49.80 | 1.08× |
+| Windows AMD64 | generic | 137.34 | 135.46 | 1.01× |
 
 ### `neos-860300`
 
 | Platform | Build | 1 thread (s) | 3 threads (s) | parallel speedup |
 |---|---|---|---|---|
-| Darwin x86_64 | avx2 | 135.29 | 29.70 | 4.55× |
-| Darwin x86_64 | generic | 121.35 | 83.92 | 1.45× |
-| Darwin arm64 | generic | 227.99 | 87.99 | 2.59× |
-| Windows AMD64 | avx2 | 67.54 | 66.55 | 1.01× |
-| Windows AMD64 | generic | 256.57 | 210.97 | 1.22× |
+| Linux aarch64 | generic | 226.88 | 123.18 | 1.84× |
+| Darwin x86_64 | avx2 | 115.72 | 49.06 | 2.36× |
+| Darwin x86_64 | generic | 144.60 | 114.17 | 1.27× |
+| Darwin arm64 | generic | 244.53 | 101.41 | 2.41× |
+| Linux x86_64 | avx2 | 36.95 | 34.92 | 1.06× |
+| Linux x86_64 | generic | 243.64 | 175.76 | 1.39× |
+| Windows AMD64 | avx2 | 58.29 | 44.36 | 1.31× |
+| Windows AMD64 | generic | 222.62 | 133.15 | 1.67× |
 
 
 <!-- PERF_RESULTS_END -->
