@@ -645,10 +645,10 @@ _cbc_exe = "cbc.exe" if platform.system() == "Windows" else "cbc"
 #   "avx2"         — build only the AVX2 variant (x86_64 only, no debug)
 #   "debug"        — build only the non-AVX2 debug variant (all platforms)
 #                    COIN-OR flags: -O1 -g -fno-omit-frame-pointer
-#                    Optional sanitizer: set CBCBOX_SANITIZE=address or =thread
+#                    AddressSanitizer automatically enabled on Linux and macOS.
 #   "debug_avx2"   — build only the debug+AVX2 variant (x86_64 only)
 #                    COIN-OR flags: -O1 -g -march=haswell -fno-omit-frame-pointer
-#                    Optional sanitizer: set CBCBOX_SANITIZE=address or =thread
+#                    AddressSanitizer automatically enabled on Linux and macOS.
 #                    Use this to debug AVX2-specific issues or to run a debuggable
 #                    binary that exercises the same AVX2 code paths as the release.
 # In "avx2" mode AMD and nauty are still compiled (as link-time static deps
@@ -692,36 +692,19 @@ _AVX2_CFLAGS = "-O3 -march=haswell"
 _OPENBLAS_DYNLIST_X86_GENERIC = "NEHALEM SANDYBRIDGE HASWELL SKYLAKEX ZEN"
 _OPENBLAS_DYNLIST_X86_AVX2    = "HASWELL SKYLAKEX"
 
-# Sanitizer selection for debug builds.  Controlled by CBCBOX_SANITIZE:
-#   unset / ""   — no sanitizer (default)
-#   "address"    — AddressSanitizer (-fsanitize=address)
-#   "thread"     — ThreadSanitizer  (-fsanitize=thread)
-# ASan and TSan are mutually exclusive.  Neither is supported on Windows/MinGW.
-# OpenBLAS is always built without sanitizer flags to avoid false positives
-# from hand-optimised BLAS kernels; only the COIN-OR stack is instrumented.
-_sanitize = os.environ.get("CBCBOX_SANITIZE", "").lower().strip()
-if _sanitize not in ("", "address", "thread"):
-    print(
-        f"[cbcbox] WARNING: Unknown CBCBOX_SANITIZE={_sanitize!r}. "
-        "Valid values: 'address', 'thread', or unset.  Ignoring.",
-        flush=True,
-    )
-    _sanitize = ""
-if _sanitize and platform.system() == "Windows":
-    print(
-        "[cbcbox] WARNING: CBCBOX_SANITIZE is not supported on Windows/MinGW. Ignoring.",
-        flush=True,
-    )
-    _sanitize = ""
-if _sanitize:
-    _san_cflags  = f" -fsanitize={_sanitize}"
-    _san_ldflags = f"-fsanitize={_sanitize}"
-    print(f"[cbcbox] Sanitizer enabled: {_sanitize}", flush=True)
+# AddressSanitizer is automatically enabled for debug builds on Linux and macOS.
+# Windows/MinGW does not support ASan, so it is skipped there.
+# OpenBLAS is always built without ASan to avoid false positives from its
+# hand-optimised BLAS kernels; only the COIN-OR stack is instrumented.
+_debug_asan = platform.system() != "Windows"
+if _debug_asan:
+    _san_cflags  = " -fsanitize=address"
+    _san_ldflags = "-fsanitize=address"
 else:
     _san_cflags  = ""
     _san_ldflags = ""
 
-# Debug build flags: -O1 -g plus optional sanitizer (set via CBCBOX_SANITIZE).
+# Debug build flags: -O1 -g + ASan on non-Windows.
 _DEBUG_CFLAGS  = f"-O1 -g -fno-omit-frame-pointer{_san_cflags}"
 _DEBUG_LDFLAGS = _san_ldflags
 
