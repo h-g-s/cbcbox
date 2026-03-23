@@ -472,6 +472,8 @@ jobs:
       - name: Set up MSYS2 toolchain
         shell: C:\msys64\usr\bin\bash.exe -l {0}
         run: |
+          pacman-key --init
+          pacman-key --populate msys2
           pacman -Sy --noconfirm
           pacman -S --needed --noconfirm \
             mingw-w64-x86_64-gcc \
@@ -500,6 +502,8 @@ jobs:
       - name: Set up MSYS2 toolchain
         shell: C:\msys64\usr\bin\bash.exe -l {0}
         run: |
+          pacman-key --init
+          pacman-key --populate msys2
           pacman -Sy --noconfirm
           pacman -S --needed --noconfirm \
             mingw-w64-x86_64-gcc \
@@ -528,6 +532,8 @@ jobs:
       - name: Set up MSYS2 toolchain
         shell: C:\msys64\usr\bin\bash.exe -l {0}
         run: |
+          pacman-key --init
+          pacman-key --populate msys2
           pacman -Sy --noconfirm
           pacman -S --needed --noconfirm \
             mingw-w64-x86_64-gcc \
@@ -557,6 +563,8 @@ jobs:
       - name: Set up MSYS2 toolchain
         shell: C:\msys64\usr\bin\bash.exe -l {0}
         run: |
+          pacman-key --init
+          pacman-key --populate msys2
           pacman -Sy --noconfirm
           pacman -S --needed --noconfirm \
             mingw-w64-x86_64-gcc \
