@@ -52,10 +52,10 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
-      - name: Build debug binary (manylinux2014_aarch64)
+      - name: Build debug binary (manylinux_2_28_aarch64)
         run: |
           for i in 1 2 3; do
-            docker pull quay.io/pypa/manylinux2014_aarch64 && break
+            docker pull quay.io/pypa/manylinux_2_28_aarch64 && break
             echo "Attempt $i failed, retrying in 30s..."
             sleep 30
           done
@@ -63,9 +63,8 @@ jobs:
             -v "$PWD:/project" \
             -e CBCBOX_BUILD_VARIANT=debug \
             -e CBCBOX_BUILD_ONLY=1 \
-            quay.io/pypa/manylinux2014_aarch64 \
-            bash -c 'source /opt/rh/devtoolset-10/enable &&
-                     export PATH=/opt/python/cp313-cp313/bin:$PATH &&
+            quay.io/pypa/manylinux_2_28_aarch64 \
+            bash -c 'export PATH=/opt/python/cp313-cp313/bin:$PATH &&
                      yum install -y gcc-gfortran &&
                      pip install setuptools wheel patchelf &&
                      cd /project &&
@@ -277,10 +276,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build debug AVX2 binary (manylinux2014)
+      - name: Build debug AVX2 binary (manylinux_2_28_x86_64)
         run: |
           for i in 1 2 3; do
-            docker pull quay.io/pypa/manylinux2014_x86_64 && break
+            docker pull quay.io/pypa/manylinux_2_28_x86_64 && break
             echo "Attempt $i failed, retrying in 30s..."
             sleep 30
           done
@@ -288,9 +287,8 @@ jobs:
             -v "$PWD:/project" \
             -e CBCBOX_BUILD_VARIANT=debug_avx2 \
             -e CBCBOX_BUILD_ONLY=1 \
-            quay.io/pypa/manylinux2014_x86_64 \
-            bash -c 'source /opt/rh/devtoolset-10/enable &&
-                     export PATH=/opt/python/cp313-cp313/bin:$PATH &&
+            quay.io/pypa/manylinux_2_28_x86_64 \
+            bash -c 'export PATH=/opt/python/cp313-cp313/bin:$PATH &&
                      yum install -y gcc-gfortran &&
                      pip install setuptools wheel patchelf &&
                      cd /project &&
