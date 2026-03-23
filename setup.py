@@ -699,16 +699,31 @@ _OPENBLAS_DYNLIST_X86_AVX2    = "HASWELL SKYLAKEX"
 _debug_asan = platform.system() != "Windows"
 if _debug_asan:
     _san_cflags = " -fsanitize=address"
-    # On Linux, do NOT put -fsanitize=address in LDFLAGS.
-    # autoconf configure scripts run their own C-compiler link tests using
-    # CC + LDFLAGS.  If LDFLAGS contains -fsanitize=address the linker tries
-    # to resolve libasan at that stage and fails with exit code 77 ("C compiler
-    # cannot create executables") — exactly the same issue described above for
-    # -no-undefined.  Keeping -fsanitize=address only in CXXFLAGS is sufficient:
-    # libtool passes CXXFLAGS to the link step (g++ $(CXXFLAGS) ... -shared),
-    # so GCC's own spec file handles finding and linking libasan automatically.
-    # On macOS, Clang bundles its ASan runtime and handles LDFLAGS just fine.
-    _san_ldflags = "" if platform.system() == "Linux" else "-fsanitize=address"
+    if platform.system() == "Linux":
+        # CXXFLAGS carries -fsanitize=address, which causes ALL configure test
+        # programs compiled as C++ (including the LAPACK link test) to require
+        # the ASan runtime library.  We must NOT put -fsanitize=address itself
+        # in LDFLAGS — that breaks the basic "C compiler works" test (exit 77,
+        # documented above for -no-undefined).  Instead, we only add -L<dir> to
+        # LDFLAGS so the linker can find libasan when GCC's spec file injects
+        # -lasan during the C++ configure tests.
+        _san_ldflags = ""
+        for _libasan_name in ("libasan.so", "libasan.a"):
+            try:
+                _libasan_path = subprocess.check_output(
+                    ["gcc", f"--print-file-name={_libasan_name}"],
+                    text=True, stderr=subprocess.DEVNULL,
+                ).strip()
+                if _libasan_path and _libasan_path != _libasan_name and os.path.isfile(_libasan_path):
+                    _san_ldflags = f"-L{os.path.dirname(_libasan_path)}"
+                    print(f"[cbcbox] libasan found: {_libasan_path}", flush=True)
+                    break
+            except Exception:
+                pass
+    else:
+        # macOS: Clang bundles its ASan runtime; putting -fsanitize=address in
+        # LDFLAGS is fine and already works.
+        _san_ldflags = "-fsanitize=address"
 else:
     _san_cflags  = ""
     _san_ldflags = ""
