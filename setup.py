@@ -700,6 +700,24 @@ _debug_asan = platform.system() != "Windows"
 if _debug_asan:
     _san_cflags  = " -fsanitize=address"
     _san_ldflags = "-fsanitize=address"
+    if platform.system() == "Linux":
+        # autoconf configure scripts use LDFLAGS for their own link tests.
+        # If libasan is in a non-standard location (e.g. inside a devtoolset
+        # prefix), the linker cannot find it and configure exits 77 with
+        # "C compiler cannot create executables".  Ask the active GCC where it
+        # keeps its runtime libraries and add that directory to LDFLAGS.
+        for _libasan_name in ("libasan.so", "libasan.a"):
+            try:
+                _libasan_path = subprocess.check_output(
+                    ["gcc", f"--print-file-name={_libasan_name}"],
+                    text=True, stderr=subprocess.DEVNULL,
+                ).strip()
+                if _libasan_path and _libasan_path != _libasan_name:
+                    _san_ldflags += f" -L{os.path.dirname(_libasan_path)}"
+                    print(f"[cbcbox] libasan found: {_libasan_path}", flush=True)
+                    break
+            except Exception:
+                pass
 else:
     _san_cflags  = ""
     _san_ldflags = ""
