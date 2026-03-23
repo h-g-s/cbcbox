@@ -64,8 +64,9 @@ jobs:
             -e CBCBOX_BUILD_VARIANT=debug \
             -e CBCBOX_BUILD_ONLY=1 \
             quay.io/pypa/manylinux2014_aarch64 \
-            bash -c 'export PATH=/opt/python/cp313-cp313/bin:$PATH &&
-                     yum install -y gcc-gfortran libasan &&
+            bash -c 'source /opt/rh/devtoolset-10/enable &&
+                     export PATH=/opt/python/cp313-cp313/bin:$PATH &&
+                     yum install -y gcc-gfortran &&
                      pip install setuptools wheel patchelf &&
                      cd /project &&
                      python setup.py build_ext'
@@ -288,8 +289,9 @@ jobs:
             -e CBCBOX_BUILD_VARIANT=debug_avx2 \
             -e CBCBOX_BUILD_ONLY=1 \
             quay.io/pypa/manylinux2014_x86_64 \
-            bash -c 'export PATH=/opt/python/cp313-cp313/bin:$PATH &&
-                     yum install -y gcc-gfortran libasan &&
+            bash -c 'source /opt/rh/devtoolset-10/enable &&
+                     export PATH=/opt/python/cp313-cp313/bin:$PATH &&
+                     yum install -y gcc-gfortran &&
                      pip install setuptools wheel patchelf &&
                      cd /project &&
                      python setup.py build_ext'
