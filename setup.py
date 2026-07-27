@@ -379,6 +379,20 @@ def build_coin_or(dest_dir=None, extra_cxxflags="", extra_ldflags=""):
                     darwin_ldflags += f" {extra_ldflags}"
                 extra += [f"LDFLAGS={darwin_ldflags}"]
                 ldflags_in_extra = True
+            elif platform.system() == "Linux":
+                # ClpRacingSolver.cpp resolves openblas_set_num_threads() via
+                # dlsym(RTLD_DEFAULT, ...) when CLP_USE_OPENBLAS is defined
+                # (which it always is here). glibc < 2.34 (e.g. manylinux2014,
+                # manylinux_2_28) keeps dlopen/dlsym in libdl rather than libc,
+                # and it is not linked automatically, causing "undefined
+                # reference to `dlsym'" when linking libClp.so. Newer glibc
+                # (>= 2.34) folds libdl into libc, so -ldl is a harmless no-op
+                # there.
+                linux_ldflags = "-ldl"
+                if extra_ldflags:
+                    linux_ldflags += f" {extra_ldflags}"
+                extra += [f"LDFLAGS={linux_ldflags}"]
+                ldflags_in_extra = True
         elif name == "Cbc":
             extra += [
                 "--without-nauty",     # symmetry detection via nauty disabled
@@ -387,6 +401,15 @@ def build_coin_or(dest_dir=None, extra_cxxflags="", extra_ldflags=""):
                 # Requires pthreads — available on all supported platforms.
                 "--enable-cbc-parallel",
             ]
+            if platform.system() == "Linux":
+                # Same dlsym/libdl requirement as Clp above: CbcModel.cpp and
+                # Cbc_C_Interface.cpp also resolve openblas_set_num_threads()
+                # and omp_set_num_threads() via dlsym(RTLD_DEFAULT, ...).
+                linux_ldflags = "-ldl"
+                if extra_ldflags:
+                    linux_ldflags += f" {extra_ldflags}"
+                extra += [f"LDFLAGS={linux_ldflags}"]
+                ldflags_in_extra = True
         else:  # Osi, Cgl — do not use LAPACK directly
             extra += ["--without-lapack"]
 
