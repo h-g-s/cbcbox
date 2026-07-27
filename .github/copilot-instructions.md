@@ -51,8 +51,10 @@ on the previous):
 
 1. **OpenBLAS** (`v0.3.31`) — optimised BLAS/LAPACK
 2. **SuiteSparse AMD** (`v7.12.2`) — sparse fill-reducing ordering for Clp barrier
-3. **Nauty** (`2.8.9`) — symmetry detection for MIP presolve
-4. **CoinUtils → Osi → Clp → Cgl → Cbc** — COIN-OR stack (all from `master`)
+3. **CoinUtils → Osi → Clp → Cgl → Cbc** — COIN-OR stack (all from `next`, always
+   compiled with `-ffp-contract=off` to avoid FMA-related numerical instability)
+
+Nauty (symmetry detection) is currently **not** built or linked (`--without-nauty`).
 
 After building, `setup.py` bundles dynamic dependencies (libgfortran, libopenblas,
 libquadmath, etc.) by:

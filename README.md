@@ -8,7 +8,7 @@
 
 **cbcbox** is a high-performance, self-contained Python distribution of the
 [CBC](https://github.com/coin-or/Cbc) MILP solver (COIN-OR Branch and Cut),
-built from the latest COIN-OR master branch.
+built from the latest COIN-OR `next` branch.
 
 On x86_64 (Linux, macOS, Windows) the wheel ships both a **[Haswell](https://en.wikipedia.org/wiki/Haswell_(microarchitecture))-optimised** binary
 ([AVX2](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions)/[FMA](https://en.wikipedia.org/wiki/FMA_instruction_set)) for maximum speed and a **generic** build with
@@ -196,12 +196,11 @@ in the following order:
 
 | Component | Version / branch | Purpose |
 |---|---|---|
-| **Cbc** | master | Branch-and-cut MIP solver |
-| **Cgl** | master | Cut generation library |
-| **Clp** | master | Simplex LP solver (used as the MIP node relaxation) |
-| **Osi** | master | Open Solver Interface |
-| **CoinUtils** | master | Utility library (shared by all COIN-OR packages) |
-| **[Nauty](https://pallini.di.uniroma1.it/)** | 2.8.9 | Symmetry detection for MIP presolve |
+| **Cbc** | next | Branch-and-cut MIP solver |
+| **Cgl** | next | Cut generation library |
+| **Clp** | next | Simplex LP solver (used as the MIP node relaxation) |
+| **Osi** | next | Open Solver Interface |
+| **CoinUtils** | next | Utility library (shared by all COIN-OR packages) |
 | **[AMD](https://github.com/DrTimothyAldenDavis/SuiteSparse)** (SuiteSparse v7.12.2) | v7.12.2 | Sparse matrix fill-reducing ordering |
 | **[OpenBLAS](https://github.com/OpenMathLib/OpenBLAS)** | v0.3.31 | Optimised BLAS/LAPACK for LP basis factorisation |
 
@@ -210,8 +209,20 @@ On x86_64 Linux, macOS, and Windows the entire stack is compiled **twice**: once
 runtime dispatch) and once for the `avx2` variant (OpenBLAS `DYNAMIC_ARCH=1` restricted
 to Haswell/Skylake targets via `DYNAMIC_LIST`, COIN-OR compiled with
 `-march=haswell -DCOIN_AVX2=4`). Both variants use `NO_CBLAS=1` (COIN-OR only calls
-the Fortran BLAS interface). AMD and Nauty are built only once (they are pure
+the Fortran BLAS interface). AMD is built only once (it is pure
 combinatorial code with no BLAS dependency) and reused by both COIN-OR variants.
+
+The COIN-OR stack (CoinUtils, Osi, Clp, Cgl, Cbc) is always compiled with
+`-ffp-contract=off`, which prevents the compiler from fusing separate
+multiply/add operations into FMA instructions. FMA computes with extra
+intermediate precision, which can introduce tiny (last-bit) numerical
+differences that make CBC's branch-and-cut behave inconsistently across
+toolchains/architectures; disabling contraction keeps results reproducible.
+This flag is not applied to OpenBLAS or AMD, whose own numerics are
+unaffected by this concern.
+
+Symmetry detection via Nauty is currently disabled (`--without-nauty`) and
+is not part of this build.
 
 All COIN-OR components are built as **shared** (`.so` / `.dylib` / `.dll`)
 libraries. The shared libraries are patched with
@@ -244,7 +255,6 @@ cbc_dist_avx2/      ← AVX2-optimised build (x86_64 Linux/macOS/Windows)
 │   └── <bundled runtime shared libs>          # Platform-specific — see below
 └── include/
     ├── coin/      # COIN-OR headers (CoinUtils, Osi, Clp, Cgl, Cbc)
-    ├── nauty/     # Nauty headers
     └── *.h        # SuiteSparse / AMD headers
 ```
 
@@ -880,5 +890,4 @@ CBC and all COIN-OR components are distributed under the
 [Eclipse Public License 2.0](https://opensource.org/licenses/EPL-2.0).
 OpenBLAS is distributed under the BSD 3-Clause licence.
 SuiteSparse AMD is distributed under the BSD 3-Clause licence.
-Nauty is distributed under the Apache 2.0 licence.
 

@@ -6,8 +6,6 @@ import re
 import shlex
 import shutil
 import subprocess
-import tarfile
-import urllib.request
 
 from setuptools import setup
 from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
@@ -46,8 +44,22 @@ NPROC    = str(max(1, multiprocessing.cpu_count()))
 
 SUITESPARSE_TAG = "v7.12.2"
 OPENBLAS_TAG    = "v0.3.31"
-NAUTY_VERSION   = "2_8_9"
-NAUTY_URL       = f"https://pallini.di.uniroma1.it/nauty{NAUTY_VERSION}.tar.gz"
+
+# Development of the COIN-OR stack has moved to the "next" branch of each
+# repository (the "master" branch is now the last stable release line).
+COIN_OR_BRANCH  = "next"
+
+# -ffp-contract=off disables the compiler's automatic fusion of separate
+# multiply/add operations into a single FMA instruction. FMA computes the
+# product with full (unrounded) intermediate precision before the final
+# rounding, so results can differ slightly (in the last bit) from the
+# strictly-IEEE separate multiply + add. This tiny discrepancy is enough to
+# make CBC's numerical routines (which rely on exact reproducibility across
+# the stack) occasionally behave inconsistently, so this flag is applied to
+# the COIN-OR stack (CoinUtils, Osi, Clp, Cgl, Cbc) only — third-party
+# dependencies built from source (OpenBLAS, SuiteSparse AMD) keep their
+# default FMA-contraction behaviour.
+FP_CONTRACT_OFF = "-ffp-contract=off"
 
 # Build order matters: each project depends on the ones before it.
 COIN_REPOS = [
@@ -244,38 +256,6 @@ def build_amd(extra_cflags=""):
     shutil.copy2(os.path.join(ss_dir, "SuiteSparse_config.h"), inc_out)
 
 
-# ── Build nauty (static) ──────────────────────────────────────────────────────
-
-def build_nauty(extra_cflags=""):
-    src = os.path.join(THIS_DIR, f"nauty{NAUTY_VERSION}")
-    if not os.path.exists(src):
-        tarball = os.path.join(THIS_DIR, f"nauty{NAUTY_VERSION}.tar.gz")
-        if not os.path.exists(tarball):
-            print(f"Downloading nauty from {NAUTY_URL}", flush=True)
-            urllib.request.urlretrieve(NAUTY_URL, tarball)
-        with tarfile.open(tarball) as tf:
-            tf.extractall(THIS_DIR)
-
-    # nauty ships its own configure; no --prefix support, so install manually.
-    # Pass CFLAGS=-fPIC so the static archive can be linked into shared libs.
-    cflags_str = f"-O2 -fPIC{' ' + extra_cflags if extra_cflags else ''}"
-    run("./configure", f"CFLAGS={cflags_str}", cwd=src)
-    run("make", "-j", NPROC, cwd=src)
-
-    os.makedirs(LIB_DIR, exist_ok=True)
-    inc = os.path.join(DIST_DIR, "include", "nauty")
-    os.makedirs(inc, exist_ok=True)
-
-    # nauty's Makefile produces "nauty.a" from source (distro packages rename
-    # it to libnauty.a); accept either name.
-    src_lib = os.path.join(src, "libnauty.a")
-    if not os.path.exists(src_lib):
-        src_lib = os.path.join(src, "nauty.a")
-    shutil.copy2(src_lib, os.path.join(LIB_DIR, "libnauty.a"))
-    for h in _glob.glob(os.path.join(src, "*.h")):
-        shutil.copy2(h, inc)
-
-
 # ── Build COIN-OR projects ────────────────────────────────────────────────────
 
 def build_coin_or(dest_dir=None, extra_cxxflags="", extra_ldflags=""):
@@ -293,11 +273,10 @@ def build_coin_or(dest_dir=None, extra_cxxflags="", extra_ldflags=""):
         dest_dir = DIST_DIR
     lib_dir = os.path.join(dest_dir, "lib")
 
-    # AMD and nauty are pure combinatorial/integer libraries that do not
-    # benefit from AVX2 and are only built once (into the base cbc_dist/).
-    # Both COIN-OR variants can safely link against the same static archives.
+    # AMD is a pure combinatorial/integer library that does not benefit from
+    # AVX2 and is only built once (into the base cbc_dist/). Both COIN-OR
+    # variants can safely link against the same static archive.
     amd_inc   = os.path.join(DIST_DIR, "include", "suitesparse")
-    nauty_inc = os.path.join(DIST_DIR, "include", "nauty")
 
     env = os.environ.copy()
     pkg_config_dir = os.path.join(lib_dir, "pkgconfig")
@@ -345,7 +324,7 @@ def build_coin_or(dest_dir=None, extra_cxxflags="", extra_ldflags=""):
         bld_suffix = "_build_debug"
 
     for name, url in COIN_REPOS:
-        src = clone_if_missing(name, url)
+        src = clone_if_missing(name, url, COIN_OR_BRANCH)
         bld = os.path.join(src, bld_suffix)
         os.makedirs(bld, exist_ok=True)
 
@@ -378,7 +357,15 @@ def build_coin_or(dest_dir=None, extra_cxxflags="", extra_ldflags=""):
             # amd.h transitively includes C++ headers (<complex> etc.) which
             # clang rejects inside extern "C".  AMD ordering is still available
             # to CBC through CoinUtils which doesn't have this wrapping issue.
+            # --without-amd is required (not just omitting the flag): Clp's
+            # configure auto-probes default system paths (e.g.
+            # /usr/include/suitesparse) for AMD and, if found, compiles
+            # ClpCholeskyUfl.cpp against it — but without --with-amd-lflags
+            # the resulting libClp fails to link with undefined references to
+            # SuiteSparse_malloc/SuiteSparse_free on any host that happens to
+            # have a system SuiteSparse package installed.
             extra += [
+                "--without-amd",
                 f"--with-lapack-lflags=-L{lib_dir} -lopenblas",
             ]
             if platform.system() == "Darwin":
@@ -393,13 +380,8 @@ def build_coin_or(dest_dir=None, extra_cxxflags="", extra_ldflags=""):
                 extra += [f"LDFLAGS={darwin_ldflags}"]
                 ldflags_in_extra = True
         elif name == "Cbc":
-            nauty_pthread = "" if platform.system() == "Windows" else " -lpthread"
-            # Cbc's CbcSymmetry.hpp uses #include "nauty/nauty.h", so the
-            # include flag must point to the parent of the nauty/ directory.
-            nauty_parent = os.path.join(DIST_DIR, "include")
             extra += [
-                f"--with-nauty-cflags=-I{nauty_parent}",
-                f"--with-nauty-lflags=-L{LIB_DIR} -lnauty{nauty_pthread}",
+                "--without-nauty",     # symmetry detection via nauty disabled
                 "--without-lapack",
                 # Enable multi-threaded MIP search (parallel branch-and-bound).
                 # Requires pthreads — available on all supported platforms.
@@ -425,13 +407,20 @@ def build_coin_or(dest_dir=None, extra_cxxflags="", extra_ldflags=""):
         # preventing stack overflow crashes on macOS whose secondary threads
         # have a 512 KB default stack (vs 8 MB on Linux).
         openblas_flag = "-DCLP_USE_OPENBLAS=1" if name in ("Clp", "Cbc") else ""
-        cxxflags_parts = ["-std=c++17"]
+        cxxflags_parts = ["-std=c++17", FP_CONTRACT_OFF]
         if extra_cxxflags:
             cxxflags_parts.append(extra_cxxflags)
         if openblas_flag:
             cxxflags_parts.append(openblas_flag)
         cxxflags = " ".join(cxxflags_parts)
-        configure_args = [configure, *common, *extra, f"CXXFLAGS={cxxflags}"]
+        # Also set CFLAGS: the COIN-OR stack is pure C++ (no .c sources as of
+        # this writing), so this is mostly a defensive no-op, but configure's
+        # own link/feature-detection tests invoke $CC directly and future .c
+        # files would silently pick up FMA contraction otherwise.
+        configure_args = [
+            configure, *common, *extra,
+            f"CXXFLAGS={cxxflags}", f"CFLAGS={FP_CONTRACT_OFF}",
+        ]
         if extra_ldflags and not ldflags_in_extra:
             configure_args.append(f"LDFLAGS={extra_ldflags}")
         run(*configure_args, cwd=bld, env=env)
@@ -651,8 +640,8 @@ _cbc_exe = "cbc.exe" if platform.system() == "Windows" else "cbc"
 #                    AddressSanitizer automatically enabled on Linux and macOS.
 #                    Use this to debug AVX2-specific issues or to run a debuggable
 #                    binary that exercises the same AVX2 code paths as the release.
-# In "avx2" mode AMD and nauty are still compiled (as link-time static deps
-# for the COIN-OR AVX2 build) but with Haswell-optimised flags.
+# In "avx2" mode AMD is still compiled (as a link-time static dep for the
+# COIN-OR AVX2 build) but with Haswell-optimised flags.
 # OpenBLAS and AMD are always built without debug flags; only the COIN-OR stack
 # (CoinUtils, Osi, Clp, Cgl, Cbc) carries debug symbols in debug builds.
 #
@@ -676,7 +665,7 @@ if _build_variant == "debug_avx2" and not _is_x86_64():
     )
 
 # Flags applied to all C/C++ code in the AVX2 variant, including the static
-# AMD and nauty libraries that are ultimately linked into COIN-OR .so/.dylib.
+# AMD library that is ultimately linked into COIN-OR .so/.dylib.
 _AVX2_CFLAGS = "-O3 -march=haswell"
 
 # OpenBLAS DYNAMIC_ARCH kernel lists for x86_64 (reduces library size by
@@ -708,16 +697,14 @@ if _build_generic and not os.path.exists(os.path.join(DIST_DIR, "bin", _cbc_exe)
     build_openblas(DIST_DIR, dynamic_arch=True,
                    dynamic_list=_OPENBLAS_DYNLIST_X86_GENERIC if _is_x86_64() else None)
     build_amd()
-    build_nauty()
     build_coin_or(DIST_DIR)
 
 # AVX2-optimised build: all x86_64 platforms (Linux, macOS, Windows).
-# In avx2-only mode AMD and nauty are still needed as link-time static deps for
-# the COIN-OR AVX2 build; compile them with Haswell flags so they are fully
-# optimised and end up embedded in the AVX2 COIN-OR shared libraries.
+# In avx2-only mode AMD is still needed as a link-time static dep for the
+# COIN-OR AVX2 build; compile it with Haswell flags so it is fully
+# optimised and ends up embedded in the AVX2 COIN-OR shared libraries.
 if not _build_generic and not _build_debug and not _build_debug_avx2 and not os.path.exists(os.path.join(LIB_DIR, "libamd.a")):
     build_amd(extra_cflags=_AVX2_CFLAGS)
-    build_nauty(extra_cflags=_AVX2_CFLAGS)
 
 if _build_avx2 and not os.path.exists(os.path.join(DIST_DIR_AVX2, "bin", _cbc_exe)):
     # Use DYNAMIC_ARCH=1 rather than TARGET=HASWELL for OpenBLAS: TARGET=HASWELL
@@ -731,13 +718,12 @@ if _build_avx2 and not os.path.exists(os.path.join(DIST_DIR_AVX2, "bin", _cbc_ex
 
 # Debug build: OpenBLAS is built WITHOUT debug flags (no debug info for
 # third-party code); only the COIN-OR stack gets full debug flags + optional
-# ASan.  AMD/nauty are static link-time deps shared with the base dist.
+# ASan.  AMD is a static link-time dep shared with the base dist.
 if _build_debug and not os.path.exists(os.path.join(DIST_DIR_DEBUG, "bin", _cbc_exe)):
     build_openblas(DIST_DIR_DEBUG, dynamic_arch=True,
                    dynamic_list=_OPENBLAS_DYNLIST_X86_GENERIC if _is_x86_64() else None)
     if not os.path.exists(os.path.join(LIB_DIR, "libamd.a")):
         build_amd()
-        build_nauty()
     build_coin_or(DIST_DIR_DEBUG,
                   extra_cxxflags=_DEBUG_CFLAGS,
                   extra_ldflags=_DEBUG_LDFLAGS)
@@ -746,13 +732,12 @@ if _build_debug and not os.path.exists(os.path.join(DIST_DIR_DEBUG, "bin", _cbc_
 # and -DCOIN_AVX2=4 so the binary exercises the same AVX2 code paths as the
 # release.  OpenBLAS is built WITHOUT debug flags (no debug info for third-party
 # code); only the COIN-OR stack gets debug+AVX2 flags.
-# AMD/nauty are shared with the base dist (pure integer libs, no SIMD).
+# AMD is shared with the base dist (a pure integer lib, no SIMD).
 if _build_debug_avx2 and not os.path.exists(os.path.join(DIST_DIR_DEBUG_AVX2, "bin", _cbc_exe)):
     build_openblas(DIST_DIR_DEBUG_AVX2, dynamic_arch=True,
                    dynamic_list=_OPENBLAS_DYNLIST_X86_AVX2)
     if not os.path.exists(os.path.join(LIB_DIR, "libamd.a")):
         build_amd()
-        build_nauty()
     build_coin_or(DIST_DIR_DEBUG_AVX2,
                   extra_cxxflags=f"{_DEBUG_AVX2_CFLAGS} -DCOIN_AVX2=4",
                   extra_ldflags=_DEBUG_AVX2_LDFLAGS)
@@ -859,12 +844,11 @@ if not os.environ.get("CBCBOX_BUILD_ONLY"):
     long_description = """\
 **cbcbox** ships pre-built binaries of the
 [CBC](https://github.com/coin-or/Cbc) MILP solver (COIN-OR Branch and Cut),
-built from the latest master branch of the COIN-OR repositories.
+built from the latest next branch of the COIN-OR repositories.
 
 Built with:
 - OpenBLAS for optimised BLAS/LAPACK routines
 - AMD reordering (SuiteSparse) for improved numerical performance
-- Nauty for symmetry detection
 - zlib for reading compressed MPS/LP files
 """
 
