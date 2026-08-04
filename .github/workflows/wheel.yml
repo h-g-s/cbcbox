@@ -585,6 +585,7 @@ jobs:
         shell: C:\msys64\usr\bin\bash.exe -l {0}
         run: |
           export PATH="/mingw64/bin:$PATH"
+          cd "$(cygpath -u "$GITHUB_WORKSPACE")"
           bash scripts/build_mip_debug_cuts.sh cbc_dist_debug_avx2 Cbc
       - run: tar -czf cbc_dist_debug_avx2.tar.gz cbc_dist_debug_avx2/
         shell: bash
