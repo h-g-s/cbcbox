@@ -2,11 +2,24 @@
 import json
 import os
 import platform
+import re
+import subprocess
 import sys
 
 import pytest
 
 import cbcbox
+
+DATA_DIR = os.path.dirname(__file__)
+SOLS_DIR = os.path.join(DATA_DIR, "sols")
+# Nested under PERF_REPORT_DIR (already redirected to a host-visible output
+# directory for Linux cibuildwheel jobs, which run tests inside an isolated
+# container -- see wheel.yml's CIBW_ENVIRONMENT_LINUX) so these diagnostic
+# logs are retrievable the same way the performance report is.
+MIP_DEBUG_CUTS_REPORTS_DIR = os.path.join(
+    os.environ.get("PERF_REPORT_DIR") or DATA_DIR, "mip_debug_cuts_reports"
+)
+MIP_DEBUG_CUTS_TIME_LIMIT = float(os.environ.get("CBCBOX_MIP_DEBUG_CUTS_TIME_LIMIT", "300"))
 
 
 def _get_build_variants():
@@ -27,6 +40,110 @@ def _get_build_variants():
 
 def pytest_configure(config):
     config._perf_results = []
+
+
+def _find_mip_debug_cuts_binary():
+    """Locate Cbc/test/mip-debug-cuts, built (see scripts/build_mip_debug_cuts.sh)
+    into cbc_dist_debug(_avx2)/bin/ alongside the debug CBC binary during the
+    CI "Compile ... debug" jobs. Returns None if no debug build/tool shipped
+    with this installation (e.g. local `pip install -e .` without a debug
+    variant, or CBCBOX_BUILD_VARIANT limited the build to non-debug variants).
+    """
+    pkg_dir = os.path.abspath(os.path.dirname(cbcbox.__file__))
+    exe_name = "mip-debug-cuts.exe" if os.name == "nt" else "mip-debug-cuts"
+    for subdir in ("cbc_dist_debug", "cbc_dist_debug_avx2"):
+        candidate = os.path.join(pkg_dir, subdir, "bin", exe_name)
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+
+def _run_mip_debug_cuts(instance_filename, node_id):
+    """Activate Osi's row-cut debugger (via Cbc/test/mip-debug-cuts) against
+    *instance_filename* using the matching tests/sols/<name>.sol reference
+    solution, to help diagnose a wrong-objective test_solve failure: any cut,
+    bound-fixing, or branching decision that would exclude the reference
+    solution is flagged in the tool's output.
+
+    Returns (log_path, captured_output) or None when either the reference
+    solution or a debug-build mip-debug-cuts binary is unavailable (nothing
+    to run -- e.g. local dev installs without a debug variant built).
+    """
+    name = instance_filename
+    if name.endswith(".mps.gz"):
+        name = name[: -len(".mps.gz")]
+    sol_path = os.path.join(SOLS_DIR, f"{name}.sol")
+    if not os.path.isfile(sol_path):
+        return None
+
+    binary = _find_mip_debug_cuts_binary()
+    if binary is None:
+        return None
+
+    instance_path = os.path.join(DATA_DIR, instance_filename)
+    cmd = [binary, instance_path, sol_path, str(MIP_DEBUG_CUTS_TIME_LIMIT), "0"]
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True,
+            timeout=MIP_DEBUG_CUTS_TIME_LIMIT + 60,
+        )
+        output = f"$ {' '.join(cmd)}\n(exit code {result.returncode})\n\n{result.stdout}{result.stderr}"
+    except Exception as exc:  # pragma: no cover - defensive
+        output = f"[mip-debug-cuts] failed to execute {cmd}: {exc}"
+
+    os.makedirs(MIP_DEBUG_CUTS_REPORTS_DIR, exist_ok=True)
+    safe_node_id = re.sub(r"[^A-Za-z0-9_.-]+", "_", node_id)
+    log_path = os.path.join(MIP_DEBUG_CUTS_REPORTS_DIR, f"{safe_node_id}.log")
+    with open(log_path, "w") as f:
+        f.write(output)
+    return log_path, output
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """On a test_solve/test_solve_parallel objective-mismatch failure, if a
+    reference solution (tests/sols/<name>.sol) and a debug mip-debug-cuts
+    binary are both available, automatically run the row-cut-debugger
+    diagnostic and attach its output to the failure report -- so CI logs
+    immediately show which cut/bound-fixing/branch invalidated the known
+    reference solution, without requiring a manual repro step.
+    """
+    outcome = yield
+    report = outcome.get_result()
+    if report.when != "call" or not report.failed:
+        return
+
+    test_name = getattr(item, "originalname", None) or item.name
+    if not test_name.startswith("test_solve"):
+        return
+
+    excinfo = call.excinfo
+    if excinfo is None or not issubclass(excinfo.type, AssertionError):
+        return
+    message = str(excinfo.value)
+    if "Expected" not in message or "got" not in message:
+        return  # not the "wrong objective" assertion -- e.g. binary missing.
+
+    callspec = getattr(item, "callspec", None)
+    filename = callspec.params.get("filename") if callspec else None
+    if not filename:
+        return
+
+    result = _run_mip_debug_cuts(filename, item.nodeid)
+    if result is None:
+        return
+    log_path, output = result
+    instance_name = filename[:-len(".mps.gz")] if filename.endswith(".mps.gz") else filename
+    banner = (
+        f"\n\n{'=' * 78}\n"
+        f"[mip-debug-cuts] objective mismatch detected for {filename} -- "
+        f"activated Cbc's row-cut debugger with the certified reference "
+        f"solution (tests/sols/{instance_name}.sol) "
+        f"to flag any cut/bound-fixing/branch that would exclude it.\n"
+        f"Full output saved to: {log_path}\n"
+        f"{'-' * 78}\n{output}\n{'=' * 78}\n"
+    )
+    report.longrepr = str(report.longrepr) + banner
 
 
 @pytest.fixture(params=_get_build_variants(), ids=lambda v: v[0])

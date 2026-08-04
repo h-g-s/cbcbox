@@ -68,7 +68,8 @@ jobs:
                      yum install -y gcc-gfortran &&
                      pip install setuptools wheel patchelf &&
                      cd /project &&
-                     python setup.py build_ext'
+                     python setup.py build_ext &&
+                     bash scripts/build_mip_debug_cuts.sh cbc_dist_debug Cbc'
           sudo chown -R "$USER:$USER" cbc_dist_debug/ 2>/dev/null || true
           tar -czf cbc_dist_debug.tar.gz cbc_dist_debug/
       - uses: actions/upload-artifact@v4
@@ -122,6 +123,13 @@ jobs:
           path: |
             wheelhouse/perf_report.md
             wheelhouse/perf_report.json
+      - name: Upload mip-debug-cuts diagnostic reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mip-debug-cuts-reports-linux-arm64
+          path: wheelhouse/mip_debug_cuts_reports/*.log
+          if-no-files-found: ignore
 
   # ── macOS ARM64 ───────────────────────────────────────────────────────────────
 
@@ -159,6 +167,8 @@ jobs:
           CBCBOX_BUILD_VARIANT: debug
           CBCBOX_BUILD_ONLY: "1"
         run: python setup.py build_ext
+      - name: Build mip-debug-cuts diagnostic tool
+        run: bash scripts/build_mip_debug_cuts.sh cbc_dist_debug Cbc
       - run: tar -czf cbc_dist_debug.tar.gz cbc_dist_debug/
       - uses: actions/upload-artifact@v4
         with:
@@ -207,6 +217,13 @@ jobs:
           path: |
             tests/perf_report.md
             tests/perf_report.json
+      - name: Upload mip-debug-cuts diagnostic reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mip-debug-cuts-reports-macos-arm64
+          path: tests/mip_debug_cuts_reports/*.log
+          if-no-files-found: ignore
 
   # ── Linux x86_64 ─────────────────────────────────────────────────────────────
   # Both variants are compiled inside the manylinux2014 container so the
@@ -292,7 +309,8 @@ jobs:
                      yum install -y gcc-gfortran &&
                      pip install setuptools wheel patchelf &&
                      cd /project &&
-                     python setup.py build_ext'
+                     python setup.py build_ext &&
+                     bash scripts/build_mip_debug_cuts.sh cbc_dist_debug_avx2 Cbc'
           sudo chown -R "$USER:$USER" cbc_dist_debug_avx2/ 2>/dev/null || true
           tar -czf cbc_dist_debug_avx2.tar.gz cbc_dist_debug_avx2/
       - uses: actions/upload-artifact@v4
@@ -351,6 +369,13 @@ jobs:
           path: |
             wheelhouse/perf_report.md
             wheelhouse/perf_report.json
+      - name: Upload mip-debug-cuts diagnostic reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mip-debug-cuts-reports-linux-x64
+          path: wheelhouse/mip_debug_cuts_reports/*.log
+          if-no-files-found: ignore
 
   # ── macOS Intel (x86_64) ─────────────────────────────────────────────────────
 
@@ -408,6 +433,8 @@ jobs:
           CBCBOX_BUILD_VARIANT: debug_avx2
           CBCBOX_BUILD_ONLY: "1"
         run: python setup.py build_ext
+      - name: Build mip-debug-cuts diagnostic tool
+        run: bash scripts/build_mip_debug_cuts.sh cbc_dist_debug_avx2 Cbc
       - run: tar -czf cbc_dist_debug_avx2.tar.gz cbc_dist_debug_avx2/
       - uses: actions/upload-artifact@v4
         with:
@@ -461,6 +488,13 @@ jobs:
           path: |
             tests/perf_report.md
             tests/perf_report.json
+      - name: Upload mip-debug-cuts diagnostic reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mip-debug-cuts-reports-macos-intel
+          path: tests/mip_debug_cuts_reports/*.log
+          if-no-files-found: ignore
 
   # ── Windows (AMD64) ───────────────────────────────────────────────────────────
 
@@ -547,6 +581,11 @@ jobs:
           CBCBOX_BUILD_VARIANT: debug_avx2
           CBCBOX_BUILD_ONLY: "1"
         run: python setup.py build_ext
+      - name: Build mip-debug-cuts diagnostic tool
+        shell: C:\msys64\usr\bin\bash.exe -l {0}
+        run: |
+          export PATH="/mingw64/bin:$PATH"
+          bash scripts/build_mip_debug_cuts.sh cbc_dist_debug_avx2 Cbc
       - run: tar -czf cbc_dist_debug_avx2.tar.gz cbc_dist_debug_avx2/
         shell: bash
       - uses: actions/upload-artifact@v4
@@ -614,6 +653,13 @@ jobs:
           path: |
             tests/perf_report.md
             tests/perf_report.json
+      - name: Upload mip-debug-cuts diagnostic reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mip-debug-cuts-reports-windows
+          path: tests/mip_debug_cuts_reports/*.log
+          if-no-files-found: ignore
 
   # ── Combine performance reports ───────────────────────────────────────────────
 
