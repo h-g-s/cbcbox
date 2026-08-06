@@ -849,14 +849,25 @@ def _strip_binaries(dist_dir: str) -> None:
         print(f"[cbcbox] strip skipped (already stripped?): {', '.join(sorted(skipped))}", flush=True)
 
 
+# On Windows, libCbc.dll.a is the MinGW import library needed to link
+# against the Cbc DLL (e.g. by scripts/build_mip_debug_cuts.sh, which runs
+# as a separate CI step *after* build_ext / CBCBOX_BUILD_ONLY=1 completes).
+# Keep static libs around for the debug variants in that case so the
+# mip-debug-cuts diagnostic tool can still be linked; they're stripped from
+# the final wheel by the "Package ..." jobs' own build (CBCBOX_BUILD_ONLY
+# unset), which is a separate setup.py invocation.
+_keep_debug_static_libs = (
+    platform.system() == "Windows" and os.environ.get("CBCBOX_BUILD_ONLY")
+)
+
 _remove_static_libs(DIST_DIR)
 _strip_binaries(DIST_DIR)
 if _build_avx2 and os.path.isdir(DIST_DIR_AVX2):
     _remove_static_libs(DIST_DIR_AVX2)
     _strip_binaries(DIST_DIR_AVX2)
-if _build_debug and os.path.isdir(DIST_DIR_DEBUG):
+if _build_debug and os.path.isdir(DIST_DIR_DEBUG) and not _keep_debug_static_libs:
     _remove_static_libs(DIST_DIR_DEBUG)
-if _build_debug_avx2 and os.path.isdir(DIST_DIR_DEBUG_AVX2):
+if _build_debug_avx2 and os.path.isdir(DIST_DIR_DEBUG_AVX2) and not _keep_debug_static_libs:
     _remove_static_libs(DIST_DIR_DEBUG_AVX2)
 
 
