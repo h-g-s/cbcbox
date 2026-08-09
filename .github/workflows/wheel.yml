@@ -20,6 +20,14 @@ on:
         required: false
         type: boolean
         default: false
+      crash_repro:
+        description: >-
+          Also build the Windows release+symbols variant and run the gdb
+          crash-repro job against known-crashing instances. Off by default so
+          normal releases don't pay for this extra ~30-60min debug-only step.
+        required: false
+        type: boolean
+        default: false
           
 
 jobs:
@@ -618,6 +626,7 @@ jobs:
 
   compile-windows-release-symbols:
     name: Compile Windows release+symbols (exact release flags, -g added)
+    if: github.event.inputs.crash_repro == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -649,6 +658,7 @@ jobs:
 
   windows-crash-repro:
     name: Windows generic-variant crash repro (gdb backtrace)
+    if: github.event.inputs.crash_repro == 'true'
     needs: [compile-windows-release-symbols]
     runs-on: windows-latest
     steps:
