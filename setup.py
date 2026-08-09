@@ -258,7 +258,7 @@ def build_amd(extra_cflags=""):
 
 # ── Build COIN-OR projects ────────────────────────────────────────────────────
 
-def build_coin_or(dest_dir=None, extra_cxxflags="", extra_ldflags=""):
+def build_coin_or(dest_dir=None, extra_cxxflags="", extra_ldflags="", is_debug=False):
     """Build the full COIN-OR stack and install into *dest_dir*.
 
     *extra_cxxflags* is appended to CXXFLAGS and can be used to enable
@@ -268,6 +268,21 @@ def build_coin_or(dest_dir=None, extra_cxxflags="", extra_ldflags=""):
     *extra_ldflags* is appended to LDFLAGS for all configure calls.  On macOS,
     the Clp project already gets "-L{lib_dir} -lopenblas"; extra_ldflags is
     merged into that rather than passed separately.
+
+    *is_debug* controls whether C assert()s are compiled in.  COIN-OR's own
+    AC_COIN_PROG_CXX/AC_COIN_PROG_CC autoconf macros normally default
+    CXXFLAGS/CFLAGS to "-O2 -DNDEBUG" (release) or "-g" (--enable-debug), but
+    only via ": ${CXXFLAGS:=...}" -- a shell default that never fires because
+    we always pass CXXFLAGS/CFLAGS explicitly on the configure command line
+    (to control -march, -ffp-contract, etc.). That silently opted every
+    release build (generic and AVX2, on every platform) out of -DNDEBUG,
+    leaving internal consistency assert()s compiled into the SHIPPED wheels:
+    an assert failing in the field aborts (SIGABRT/access violation) the
+    caller's process instead of leaving debugging to an explicit debug build.
+    So: pass is_debug=True for the debug/debug_avx2 variants (which
+    deliberately want assertions active, see scripts/build_mip_debug_cuts.sh)
+    and leave it False (the default) for the generic/avx2 release variants,
+    which now get -DNDEBUG explicitly.
     """
     if dest_dir is None:
         dest_dir = DIST_DIR
@@ -430,7 +445,13 @@ def build_coin_or(dest_dir=None, extra_cxxflags="", extra_ldflags=""):
         # preventing stack overflow crashes on macOS whose secondary threads
         # have a 512 KB default stack (vs 8 MB on Linux).
         openblas_flag = "-DCLP_USE_OPENBLAS=1" if name in ("Clp", "Cbc") else ""
+        # -DNDEBUG strips assert()s for release builds (never added by
+        # autoconf's own defaults here -- see the is_debug docstring above);
+        # debug builds must NOT get it so assertions stay active for gdb/ASan.
+        ndebug_flag = "" if is_debug else "-DNDEBUG"
         cxxflags_parts = ["-std=c++17", FP_CONTRACT_OFF]
+        if ndebug_flag:
+            cxxflags_parts.append(ndebug_flag)
         if extra_cxxflags:
             cxxflags_parts.append(extra_cxxflags)
         if openblas_flag:
@@ -440,9 +461,12 @@ def build_coin_or(dest_dir=None, extra_cxxflags="", extra_ldflags=""):
         # this writing), so this is mostly a defensive no-op, but configure's
         # own link/feature-detection tests invoke $CC directly and future .c
         # files would silently pick up FMA contraction otherwise.
+        cflags_parts = [FP_CONTRACT_OFF]
+        if ndebug_flag:
+            cflags_parts.append(ndebug_flag)
         configure_args = [
             configure, *common, *extra,
-            f"CXXFLAGS={cxxflags}", f"CFLAGS={FP_CONTRACT_OFF}",
+            f"CXXFLAGS={cxxflags}", f"CFLAGS={' '.join(cflags_parts)}",
         ]
         if extra_ldflags and not ldflags_in_extra:
             configure_args.append(f"LDFLAGS={extra_ldflags}")
@@ -749,7 +773,8 @@ if _build_debug and not os.path.exists(os.path.join(DIST_DIR_DEBUG, "bin", _cbc_
         build_amd()
     build_coin_or(DIST_DIR_DEBUG,
                   extra_cxxflags=_DEBUG_CFLAGS,
-                  extra_ldflags=_DEBUG_LDFLAGS)
+                  extra_ldflags=_DEBUG_LDFLAGS,
+                  is_debug=True)
 
 # Debug+AVX2 build (x86_64 only): like the debug build but with -march=haswell
 # and -DCOIN_AVX2=4 so the binary exercises the same AVX2 code paths as the
@@ -763,7 +788,8 @@ if _build_debug_avx2 and not os.path.exists(os.path.join(DIST_DIR_DEBUG_AVX2, "b
         build_amd()
     build_coin_or(DIST_DIR_DEBUG_AVX2,
                   extra_cxxflags=f"{_DEBUG_AVX2_CFLAGS} -DCOIN_AVX2=4",
-                  extra_ldflags=_DEBUG_AVX2_LDFLAGS)
+                  extra_ldflags=_DEBUG_AVX2_LDFLAGS,
+                  is_debug=True)
 
 
 def _bundle_dist(dist_dir):
