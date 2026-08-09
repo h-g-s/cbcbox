@@ -781,7 +781,7 @@ jobs:
 
   combine_reports:
     name: Combine performance reports
-    if: github.event.inputs.windows_only != 'true'
+    if: always() && github.event.inputs.windows_only != 'true'
     needs:
       - package-linux-arm64
       - package-macos-arm64
@@ -789,7 +789,6 @@ jobs:
       - package-macos-intel
       - package-windows
     runs-on: ubuntu-latest
-    if: always()
     permissions:
       contents: write
 
