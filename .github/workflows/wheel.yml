@@ -728,6 +728,114 @@ jobs:
           path: crash_repro_reports/*
           if-no-files-found: warn
 
+  windows-installed-wheel-repro:
+    name: Windows crash repro against actual installed multi-variant wheel
+    if: github.event.inputs.crash_repro == 'true'
+    needs: [compile-windows-generic, compile-windows-avx2, compile-windows-debug]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up MSYS2 toolchain
+        shell: C:\msys64\usr\bin\bash.exe -l {0}
+        run: |
+          pacman-key --init
+          pacman-key --populate msys2
+          pacman -Sy --noconfirm
+          pacman -S --needed --noconfirm \
+            mingw-w64-x86_64-gcc \
+            mingw-w64-x86_64-gcc-fortran \
+            mingw-w64-x86_64-gdb \
+            make \
+            autoconf automake libtool pkg-config
+      - uses: actions/download-artifact@v4
+        with:
+          name: cbc-dist-windows-generic
+          path: .
+      - run: tar -xzf cbc_dist_generic.tar.gz
+        shell: bash
+      - uses: actions/download-artifact@v4
+        with:
+          name: cbc-dist-windows-avx2
+          path: .
+      - run: tar -xzf cbc_dist_avx2.tar.gz
+        shell: bash
+      - uses: actions/download-artifact@v4
+        with:
+          name: cbc-dist-windows-debug
+          path: .
+      - run: tar -xzf cbc_dist_debug_avx2.tar.gz
+        shell: bash
+      - name: pip install . (mirrors cibuildwheel's real packaging invocation)
+        shell: pwsh
+        run: |
+          pip install .
+      - name: Locate installed cbc_dist/bin/cbc.exe and print build info
+        id: locate
+        shell: pwsh
+        run: |
+          $cbcbox_dir = python -c "import cbcbox, os; print(os.path.dirname(cbcbox.__file__))"
+          echo "cbcbox_dir=$cbcbox_dir" >> $env:GITHUB_OUTPUT
+          Get-ChildItem -Recurse -Filter "cbc.exe" $cbcbox_dir
+          Get-ChildItem -Recurse -Filter "*.dll" $cbcbox_dir | Select-Object FullName
+      - name: Reproduce crashes against the INSTALLED generic binary (pytest-style subprocess)
+        shell: pwsh
+        run: |
+          $cbcbox_dir = "${{ steps.locate.outputs.cbcbox_dir }}"
+          $cbc_bin = Join-Path $cbcbox_dir "cbc_dist\bin\cbc.exe"
+          python scripts/pytest_style_repro.py $cbc_bin tests sprint_hidden06_j air03 nw04 nursesched-sprint02 pk1 mas76 eil33-2 fiber markshare_4_0 irp qap10 > installed_subprocess_repro.log 2>&1
+          Get-Content installed_subprocess_repro.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installed-wheel-subprocess-log
+          path: installed_subprocess_repro.log
+      - name: Reproduce crashes against the INSTALLED generic binary under gdb
+        shell: C:\msys64\usr\bin\bash.exe -l {0}
+        run: |
+          export PATH="/mingw64/bin:$PATH"
+          cd "$(cygpath -u "$GITHUB_WORKSPACE")"
+          CBCBOX_DIR="$(cygpath -u "${{ steps.locate.outputs.cbcbox_dir }}")"
+          CBC_BIN="$CBCBOX_DIR/cbc_dist/bin/cbc.exe"
+          OUT_DIR="installed_wheel_crash_reports"
+          mkdir -p "$OUT_DIR"
+          INSTANCES="sprint_hidden06_j air03 nw04 nursesched-sprint02 pk1 mas76 eil33-2 fiber markshare_4_0 irp qap10"
+          export OPENBLAS_NUM_THREADS=1
+          SUMMARY="$OUT_DIR/SUMMARY.txt"
+          : > "$SUMMARY"
+          for inst in $INSTANCES; do
+            f="tests/${inst}.mps.gz"
+            log="$OUT_DIR/${inst}.gdb.log"
+            echo "=== $inst ===" | tee -a "$SUMMARY"
+            gdb -q --batch \
+              -ex "set pagination off" \
+              -ex "run" \
+              -ex "bt full" \
+              -ex "info registers" \
+              -ex "thread apply all bt" \
+              --args "$CBC_BIN" "$f" -seconds 120 -timem elapsed -solve -quit \
+              > "$log" 2>&1 || true
+            grep -E "^Program (received|terminated)|Assertion|^#[0-9]+ " "$log" | head -20 >> "$SUMMARY" || true
+            echo "" >> "$SUMMARY"
+          done
+          echo "===== FULL SUMMARY ====="
+          cat "$SUMMARY"
+      - name: Run the actual pytest suite against the installed wheel (closest to real failure)
+        shell: pwsh
+        run: |
+          pip install pytest
+          pytest tests/ -v -k "sprint_hidden06_j or air03 or nw04 or nursesched-sprint02 or pk1 or mas76 or eil33-2 or fiber or markshare_4_0 or irp or qap10" | Tee-Object -FilePath installed_pytest_repro.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-installed-wheel-pytest-log
+          path: installed_pytest_repro.log
+      - name: Upload installed-wheel crash reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installed-wheel-crash-reports
+          path: installed_wheel_crash_reports/*
+          if-no-files-found: warn
+
   package-windows:
     name: Package Windows wheel
     needs: [compile-windows-generic, compile-windows-avx2, compile-windows-debug]
