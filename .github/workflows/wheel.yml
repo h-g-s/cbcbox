@@ -679,6 +679,15 @@ jobs:
           path: .
       - run: tar -xzf cbc_dist_release_symbols.tar.gz
         shell: bash
+      - name: Reproduce crashes via plain Python subprocess (pytest-style invocation, no gdb)
+        shell: pwsh
+        run: |
+          python scripts/pytest_style_repro.py cbc_dist/bin/cbc.exe tests sprint_hidden06_j air03 nw04 nursesched-sprint02 pk1 mas76 eil33-2 fiber markshare_4_0 irp qap10 > subprocess_repro.log 2>&1
+          Get-Content subprocess_repro.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-crash-repro-subprocess-log
+          path: subprocess_repro.log
       - name: Reproduce crashes under gdb and capture backtraces
         shell: C:\msys64\usr\bin\bash.exe -l {0}
         run: |
