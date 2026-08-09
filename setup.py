@@ -687,6 +687,13 @@ _cbc_exe = "cbc.exe" if platform.system() == "Windows" else "cbc"
 #                    AddressSanitizer automatically enabled on Linux and macOS.
 #                    Use this to debug AVX2-specific issues or to run a debuggable
 #                    binary that exercises the same AVX2 code paths as the release.
+#   "release_symbols" — build only the generic *release* variant (same CXXFLAGS,
+#                    same optimisation level, same -DNDEBUG) with -g added on
+#                    top, so the resulting binary is bit-for-bit behaviourally
+#                    identical to what actually ships, just with debug symbols.
+#                    Use this (under gdb) to get a real backtrace for bugs that
+#                    only reproduce with release codegen/optimisation and do
+#                    NOT reproduce in the "debug" (-O1) variant.
 # In "avx2" mode AMD is still compiled (as a link-time static dep for the
 # COIN-OR AVX2 build) but with Haswell-optimised flags.
 # OpenBLAS and AMD are always built without debug flags; only the COIN-OR stack
@@ -695,8 +702,9 @@ _cbc_exe = "cbc.exe" if platform.system() == "Windows" else "cbc"
 # CBCBOX_BUILD_ONLY=1 — skip the wheel-packaging stage (used by CI compile
 # jobs that only need the binaries, not the final .whl).
 _build_variant    = os.environ.get("CBCBOX_BUILD_VARIANT", "")
-_build_generic    = _build_variant not in ("avx2", "debug", "debug_avx2")
-_build_avx2       = _is_x86_64() and _build_variant not in ("generic", "debug", "debug_avx2")
+_build_release_symbols = _build_variant == "release_symbols"
+_build_generic    = _build_variant not in ("avx2", "debug", "debug_avx2", "release_symbols")
+_build_avx2       = _is_x86_64() and _build_variant not in ("generic", "debug", "debug_avx2", "release_symbols")
 # Debug (non-AVX2): built by default on non-x86_64; on x86_64 only when
 # explicitly requested so we avoid a redundant generic-debug wheel alongside
 # the haswell-debug one.
@@ -746,11 +754,25 @@ if _build_generic and not os.path.exists(os.path.join(DIST_DIR, "bin", _cbc_exe)
     build_amd()
     build_coin_or(DIST_DIR)
 
+# Release-with-symbols build: identical CXXFLAGS/optimisation/-DNDEBUG to the
+# generic release build above, with only "-g -fno-omit-frame-pointer" added.
+# Used to get real backtraces (via gdb) for bugs that reproduce only with
+# release codegen and do NOT reproduce in the (differently-optimised) "debug"
+# variant. Built into DIST_DIR itself (mutually exclusive with _build_generic)
+# since it's meant to stand in for the release binary, not ship alongside it.
+if _build_release_symbols and not os.path.exists(os.path.join(DIST_DIR, "bin", _cbc_exe)):
+    build_openblas(DIST_DIR, dynamic_arch=True,
+                   dynamic_list=_OPENBLAS_DYNLIST_X86_GENERIC if _is_x86_64() else None)
+    build_amd()
+    build_coin_or(DIST_DIR, extra_cxxflags="-g -fno-omit-frame-pointer")
+
 # AVX2-optimised build: all x86_64 platforms (Linux, macOS, Windows).
 # In avx2-only mode AMD is still needed as a link-time static dep for the
 # COIN-OR AVX2 build; compile it with Haswell flags so it is fully
 # optimised and ends up embedded in the AVX2 COIN-OR shared libraries.
-if not _build_generic and not _build_debug and not _build_debug_avx2 and not os.path.exists(os.path.join(LIB_DIR, "libamd.a")):
+if (not _build_generic and not _build_debug and not _build_debug_avx2
+        and not _build_release_symbols
+        and not os.path.exists(os.path.join(LIB_DIR, "libamd.a"))):
     build_amd(extra_cflags=_AVX2_CFLAGS)
 
 if _build_avx2 and not os.path.exists(os.path.join(DIST_DIR_AVX2, "bin", _cbc_exe)):
@@ -887,7 +909,10 @@ _keep_debug_static_libs = (
 )
 
 _remove_static_libs(DIST_DIR)
-_strip_binaries(DIST_DIR)
+# Skip stripping for release_symbols builds: stripping would defeat the
+# entire point (removing the -g symbols we just added for gdb backtraces).
+if not _build_release_symbols:
+    _strip_binaries(DIST_DIR)
 if _build_avx2 and os.path.isdir(DIST_DIR_AVX2):
     _remove_static_libs(DIST_DIR_AVX2)
     _strip_binaries(DIST_DIR_AVX2)

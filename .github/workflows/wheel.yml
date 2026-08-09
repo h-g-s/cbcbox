@@ -616,8 +616,8 @@ jobs:
           name: cbc-dist-windows-debug
           path: cbc_dist_debug_avx2.tar.gz
 
-  compile-windows-debug-generic:
-    name: Compile Windows debug (generic, no AVX2)
+  compile-windows-release-symbols:
+    name: Compile Windows release+symbols (exact release flags, -g added)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -635,21 +635,21 @@ jobs:
             autoconf automake libtool pkg-config
       - name: Install Python build deps
         run: pip install setuptools wheel
-      - name: Build debug generic binary (-O1 -g, no -march=haswell)
+      - name: Build release binary with -g added (same CXXFLAGS/-DNDEBUG as shipped generic release)
         env:
-          CBCBOX_BUILD_VARIANT: debug
+          CBCBOX_BUILD_VARIANT: release_symbols
           CBCBOX_BUILD_ONLY: "1"
         run: python setup.py build_ext
-      - run: tar -czf cbc_dist_debug.tar.gz cbc_dist_debug/
+      - run: tar -czf cbc_dist_release_symbols.tar.gz cbc_dist/
         shell: bash
       - uses: actions/upload-artifact@v4
         with:
-          name: cbc-dist-windows-debug-generic
-          path: cbc_dist_debug.tar.gz
+          name: cbc-dist-windows-release-symbols
+          path: cbc_dist_release_symbols.tar.gz
 
   windows-crash-repro:
     name: Windows generic-variant crash repro (gdb backtrace)
-    needs: [compile-windows-debug-generic]
+    needs: [compile-windows-release-symbols]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -665,16 +665,16 @@ jobs:
             make
       - uses: actions/download-artifact@v4
         with:
-          name: cbc-dist-windows-debug-generic
+          name: cbc-dist-windows-release-symbols
           path: .
-      - run: tar -xzf cbc_dist_debug.tar.gz
+      - run: tar -xzf cbc_dist_release_symbols.tar.gz
         shell: bash
       - name: Reproduce crashes under gdb and capture backtraces
         shell: C:\msys64\usr\bin\bash.exe -l {0}
         run: |
           export PATH="/mingw64/bin:$PATH"
           cd "$(cygpath -u "$GITHUB_WORKSPACE")"
-          CBC_BIN="cbc_dist_debug/bin/cbc.exe"
+          CBC_BIN="cbc_dist/bin/cbc.exe"
           OUT_DIR="crash_repro_reports"
           mkdir -p "$OUT_DIR"
           # Instances that crashed with "Could not parse final objective from
