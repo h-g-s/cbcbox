@@ -117,7 +117,11 @@ def _solve_and_get_obj(mps_file: str, cbc_binary: str = None,
             elapsed = float(m.group(1))
     if obj_value is None:
         raise AssertionError(
-            f"Could not parse final objective from CBC output.\nOutput:\n{output}"
+            f"Could not parse final objective from CBC output. "
+            f"returncode={result.returncode} "
+            f"(negative on POSIX means killed by signal -N; on Windows a large "
+            f"negative/unsigned value like -1073741819 = 0xC0000005 indicates "
+            f"STATUS_ACCESS_VIOLATION).\nOutput:\n{output}"
         )
     return obj_value, elapsed
 

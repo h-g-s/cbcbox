@@ -871,6 +871,19 @@ jobs:
           path: .
       - run: tar -xzf cbc_dist_debug_avx2.tar.gz
         shell: bash
+      - name: Enable Windows Error Reporting local crash dumps for cbc.exe
+        shell: pwsh
+        run: |
+          # WER LocalDumps: automatically write a full-memory .dmp for any
+          # crashing process named cbc.exe, so a real crash occurring inside
+          # the pytest/cibuildwheel run gets captured without needing a
+          # separate debugger-attached repro.
+          $key = "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\cbc.exe"
+          New-Item -Path $key -Force | Out-Null
+          New-ItemProperty -Path $key -Name DumpFolder -PropertyType ExpandString -Value "$env:GITHUB_WORKSPACE\crash_dumps" -Force | Out-Null
+          New-ItemProperty -Path $key -Name DumpType -PropertyType DWord -Value 2 -Force | Out-Null   # 2 = full dump
+          New-ItemProperty -Path $key -Name DumpCount -PropertyType DWord -Value 20 -Force | Out-Null
+          New-Item -Path "$env:GITHUB_WORKSPACE\crash_dumps" -ItemType Directory -Force | Out-Null
       - name: Build and test wheel (compilation skipped — binaries pre-built)
         uses: pypa/cibuildwheel@v3.3.1
         env:
@@ -888,6 +901,24 @@ jobs:
         with:
           name: cibw-wheels-Windows-AMD64
           path: ./wheelhouse/*.whl
+      - name: Check for and report WER crash dumps
+        if: always()
+        shell: pwsh
+        run: |
+          $dumps = Get-ChildItem -Path "$env:GITHUB_WORKSPACE\crash_dumps" -Filter *.dmp -ErrorAction SilentlyContinue
+          if ($dumps) {
+            Write-Host "Found $($dumps.Count) crash dump(s):"
+            $dumps | ForEach-Object { Write-Host " - $($_.FullName) ($($_.Length) bytes)" }
+          } else {
+            Write-Host "No crash dumps found in $env:GITHUB_WORKSPACE\crash_dumps"
+          }
+      - name: Upload WER crash dumps (if any)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-package-crash-dumps
+          path: crash_dumps/*.dmp
+          if-no-files-found: ignore
       - name: Upload performance report
         if: always()
         uses: actions/upload-artifact@v4
