@@ -178,14 +178,22 @@ def build_openblas(dest_dir, *, dynamic_arch=False, target=None, extra_cflags=""
     if target:
         # Explicit CPU target (e.g. TARGET=HASWELL for AVX2 build).
         make_vars.append(f"TARGET={target}")
-    elif dynamic_arch and platform.system() != "Windows":
-        # DYNAMIC_ARCH=1 compiles multiple kernels and dispatches at runtime;
-        # not used on Windows where the wheel is always x86_64 native.
+    elif dynamic_arch:
+        # DYNAMIC_ARCH=1 compiles multiple kernels and dispatches at runtime.
         # NO_AVX512=1: AVX-512 kernels use very large stack frames (ZMM spills)
         # that overflow the 512 KB default pthread stack on macOS, causing
         # SIGSEGV inside dgetrf_single on CI runners with Ice Lake Xeons.
         # Our wheel targets Haswell (AVX2) as the high-water mark, so AVX-512
         # is never needed.
+        # This must ALSO be applied on Windows: without DYNAMIC_ARCH/NO_AVX512,
+        # OpenBLAS falls back to build-time CPUID auto-detection of the CI
+        # runner's host CPU, and some GitHub-hosted Windows runners land on
+        # AVX-512-capable hosts, which then intermittently fail to compile
+        # OpenBLAS's SkylakeX kernel under MinGW GCC 16.2 ("inlining failed
+        # in call to always_inline ...: target specific option mismatch").
+        # That is the root cause of the flaky "Compile Windows *" job failures
+        # seen across many CI runs — it depends on which physical host the
+        # runner happens to land on, not on any code change.
         make_vars.append("DYNAMIC_ARCH=1")
         make_vars.append("NO_AVX512=1")
         # Limit the set of compiled kernels to modern CPUs; pre-2010
