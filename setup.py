@@ -6,6 +6,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 
 from setuptools import setup
 from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
@@ -490,13 +491,74 @@ def _is_system_lib(path: str) -> bool:
     name = os.path.basename(path)
     if platform.system() == "Linux":
         return bool(_MANYLINUX_ALLOWED.match(name))
-    # macOS: skip anything already using a loader-relative path, or in
-    # the standard system library trees.
-    return (
-        path.startswith("@")
-        or path.startswith("/usr/lib/")
-        or path.startswith("/System/")
-    )
+    # macOS: only the standard system library trees are truly "system".
+    # A loader-relative (@rpath/@loader_path/@executable_path) install name
+    # does NOT necessarily mean the lib has already been bundled: modern
+    # Homebrew GCC reports its own runtime libs (libgcc_s, libstdc++, ...)
+    # with an @rpath install name from the start, before cbcbox's own
+    # bundling pass ever touches them. Those still need to be resolved to
+    # a real file on disk and copied in; see _resolve_macos_dep().
+    return path.startswith("/usr/lib/") or path.startswith("/System/")
+
+
+def _resolve_macos_dep(binary: str, dep: str) -> str:
+    """Resolve a loader-relative (@rpath/@loader_path/@executable_path)
+    dependency reference *dep* found in *binary* to an absolute file path.
+
+    Returns "" if it cannot be resolved.
+    """
+    if not dep.startswith("@"):
+        return dep
+    name = os.path.basename(dep)
+    base_dir = os.path.dirname(os.path.realpath(binary))
+
+    # 0) @loader_path/@executable_path are directly relative to the
+    #    binary's own directory -- no need to consult LC_RPATH.
+    if dep.startswith("@loader_path/") or dep.startswith("@executable_path/"):
+        candidate = os.path.join(base_dir, name)
+        if os.path.exists(candidate):
+            return candidate
+
+    # 1) Look at the binary's own LC_RPATH entries (this is how the
+    #    dynamic linker would actually resolve an @rpath/ reference).
+    if dep.startswith("@rpath/"):
+        out = subprocess.run(
+            ["otool", "-l", binary], capture_output=True, text=True
+        ).stdout
+        lines = out.splitlines()
+        rpaths = []
+        for i, line in enumerate(lines):
+            if line.strip() == "cmd LC_RPATH":
+                for j in range(i, min(i + 4, len(lines))):
+                    m = re.search(r"path (.+) \(offset", lines[j])
+                    if m:
+                        rpaths.append(m.group(1).strip())
+                        break
+        for rp in rpaths:
+            rp = rp.replace("@loader_path", base_dir).replace(
+                "@executable_path", base_dir
+            )
+            candidate = os.path.join(rp, name)
+            if os.path.exists(candidate):
+                return candidate
+
+    # 2) Fall back to the compiler toolchain -- this covers GCC runtime
+    #    libs (libgcc_s, libstdc++, libquadmath, libgfortran) that Homebrew
+    #    GCC reports with an @rpath install name but which live in the
+    #    toolchain's own lib directory, not next to *binary*.
+    for cc in ("gfortran", "gcc", "g++"):
+        try:
+            r = subprocess.run(
+                [cc, "-print-file-name=" + name],
+                capture_output=True, text=True,
+            )
+        except FileNotFoundError:
+            continue
+        candidate = r.stdout.strip()
+        if candidate and candidate != name and os.path.exists(candidate):
+            return candidate
+
+    return ""
 
 
 def _soname_linux(lib_path: str) -> str:
@@ -621,16 +683,34 @@ def bundle_dynamic_deps(binary: str, lib_dir: str, _visited: set = None):
             name = os.path.basename(install_name)
             if name in _visited:
                 continue
+
+            src_path = install_name
+            if install_name.startswith("@"):
+                # Not an absolute path: resolve to a real file on disk (see
+                # _resolve_macos_dep for why this is needed even though the
+                # dep is already loader-relative).
+                resolved = _resolve_macos_dep(binary, install_name)
+                if not resolved:
+                    print(
+                        f"warning: could not resolve {install_name} "
+                        f"referenced by {binary}; not bundled, may fail to "
+                        f"load at runtime",
+                        file=sys.stderr,
+                    )
+                    continue
+                src_path = resolved
+
             _visited.add(name)
 
             # Rewrite the hard-coded path in the binary to use @rpath.
-            subprocess.run(
-                ["install_name_tool", "-change", install_name, f"@rpath/{name}", binary],
-                check=True,
-            )
+            if install_name != f"@rpath/{name}":
+                subprocess.run(
+                    ["install_name_tool", "-change", install_name, f"@rpath/{name}", binary],
+                    check=True,
+                )
             dst = os.path.join(lib_dir, name)
             if not os.path.exists(dst):
-                shutil.copy2(install_name, dst)
+                shutil.copy2(src_path, dst)
                 os.chmod(dst, 0o755)
                 # Give the copied lib a proper @rpath-relative install name.
                 subprocess.run(
