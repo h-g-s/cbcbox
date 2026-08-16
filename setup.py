@@ -681,43 +681,56 @@ def bundle_dynamic_deps(binary: str, lib_dir: str, _visited: set = None):
 
         for install_name in _dynamic_deps_macos(binary):
             name = os.path.basename(install_name)
-            if name in _visited:
-                continue
 
+            # Always resolve a real on-disk source for this dependency (needed
+            # to copy it into lib_dir even when `binary`'s reference is
+            # already @rpath/name and needs no rewrite -- e.g. Homebrew GCC's
+            # own libgcc_s reported natively via @rpath).
             src_path = install_name
             if install_name.startswith("@"):
-                # Not an absolute path: resolve to a real file on disk (see
-                # _resolve_macos_dep for why this is needed even though the
-                # dep is already loader-relative).
                 resolved = _resolve_macos_dep(binary, install_name)
                 if not resolved:
                     print(
                         f"warning: could not resolve {install_name} "
-                        f"referenced by {binary}; not bundled, may fail to "
-                        f"load at runtime",
+                        f"referenced by {binary}; not bundled, may "
+                        f"fail to load at runtime",
                         file=sys.stderr,
                     )
-                    continue
-                src_path = resolved
+                src_path = resolved or None
 
-            _visited.add(name)
-
-            # Rewrite the hard-coded path in the binary to use @rpath.
+            # Always fix up *this* binary's own reference, regardless of
+            # whether the target dependency file has already been bundled
+            # ("visited") via some other referencing binary. The previous
+            # code skipped this whenever `name in _visited`, which meant
+            # only the *first* binary reaching a given dependency (in DFS
+            # traversal order) got its reference rewritten to @rpath --
+            # every other binary kept the absolute build-machine path.
             if install_name != f"@rpath/{name}":
                 subprocess.run(
                     ["install_name_tool", "-change", install_name, f"@rpath/{name}", binary],
                     check=True,
                 )
+
+            if name in _visited:
+                continue
+            _visited.add(name)
+
             dst = os.path.join(lib_dir, name)
-            if not os.path.exists(dst):
+            if not os.path.exists(dst) and src_path:
                 shutil.copy2(src_path, dst)
                 os.chmod(dst, 0o755)
-                # Give the copied lib a proper @rpath-relative install name.
+            if os.path.exists(dst):
+                # Normalize the lib's own id to @rpath/name. This also
+                # covers libraries that were already sitting in lib_dir
+                # from the start (e.g. sibling COIN-OR libs built straight
+                # there) and never went through the "freshly copied" path
+                # above, which previously left their LC_ID_DYLIB as an
+                # absolute build-machine path.
                 subprocess.run(
                     ["install_name_tool", "-id", f"@rpath/{name}", dst],
-                    check=True,
+                    capture_output=True,
                 )
-            bundle_dynamic_deps(dst, lib_dir, _visited)
+                bundle_dynamic_deps(dst, lib_dir, _visited)
 
     elif platform.system() == "Windows":
         # On Windows the loader finds DLLs in the same directory as the
@@ -907,10 +920,17 @@ def _bundle_dist(dist_dir):
     lib_dir    = os.path.join(dist_dir, "lib")
     bundle_dir = os.path.join(dist_dir, "bin") if platform.system() == "Windows" else lib_dir
 
+    # Share one _visited set across every top-level call below so a
+    # dependency file bundled/recursed-into while processing one binary is
+    # recognized as already-copied when reached again from a different
+    # top-level binary -- while each binary's own load-command references
+    # are still always fixed up regardless (see bundle_dynamic_deps).
+    _visited = set()
+
     for bin_name in [_cbc_exe, "clp.exe" if platform.system() == "Windows" else "clp"]:
         bin_path = os.path.join(dist_dir, "bin", bin_name)
         if os.path.exists(bin_path):
-            bundle_dynamic_deps(bin_path, bundle_dir)
+            bundle_dynamic_deps(bin_path, bundle_dir, _visited)
 
     if platform.system() == "Windows":
         shared_pattern = os.path.join(dist_dir, "bin", "*.dll")
@@ -921,7 +941,18 @@ def _bundle_dist(dist_dir):
 
     for lib_path in _glob.glob(shared_pattern):
         if not os.path.islink(lib_path):
-            bundle_dynamic_deps(lib_path, bundle_dir)
+            bundle_dynamic_deps(lib_path, bundle_dir, _visited)
+            if platform.system() == "Darwin":
+                # Unconditionally normalize this dylib's own LC_ID_DYLIB to
+                # @rpath/name. bundle_dynamic_deps only does this when the
+                # file is reached as some *other* binary's dependency; libs
+                # that happen to never appear in anyone's dependency list
+                # (or are reached only here, first) would otherwise keep
+                # their absolute build-machine install name forever.
+                subprocess.run(
+                    ["install_name_tool", "-id", f"@rpath/{os.path.basename(lib_path)}", lib_path],
+                    capture_output=True,
+                )
 
     if platform.system() == "Windows":
         copy_win_dlls_to_lib(dist_dir)
