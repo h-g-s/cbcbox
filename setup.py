@@ -967,6 +967,35 @@ if _build_debug_avx2 and os.path.isdir(DIST_DIR_DEBUG_AVX2):
     _bundle_dist(DIST_DIR_DEBUG_AVX2)
 
 
+def _adhoc_codesign(path: str) -> None:
+    """Replace the signature install_name_tool invalidates.
+
+    Rewriting Mach-O load commands leaves the library with only the
+    linker's signature (codesign flags 0x20002). Current macOS rejects
+    that and kills the loading process with SIGKILL. An explicit ad-hoc
+    signature (flags 0x2) is accepted. Must run after the last edit of *path*.
+    install_name_tool and strip both invalidate the signature.
+    """
+    subprocess.run(["codesign", "--force", "--sign", "-", path], check=True)
+
+
+def _adhoc_codesign_dist(dist_dir: str) -> None:
+    """Ad-hoc sign every Mach-O file in a finished macOS distribution tree.
+
+    Called after bundling and stripping: both rewrite the binaries and
+    leave them with a signature current macOS kills the process for.
+    """
+    if platform.system() != "Darwin" or not os.path.isdir(dist_dir):
+        return
+    for bin_name in (_cbc_exe, "clp"):
+        bin_path = os.path.join(dist_dir, "bin", bin_name)
+        if os.path.exists(bin_path):
+            _adhoc_codesign(bin_path)
+    for lib_path in _glob.glob(os.path.join(dist_dir, "lib", "*.dylib")):
+        if not os.path.islink(lib_path):
+            _adhoc_codesign(lib_path)
+
+
 def _remove_static_libs(dist_dir: str) -> None:
     """Remove static (.a) and libtool (.la) files — not needed at runtime."""
     lib_dir = os.path.join(dist_dir, "lib")
@@ -1032,13 +1061,17 @@ _remove_static_libs(DIST_DIR)
 # entire point (removing the -g symbols we just added for gdb backtraces).
 if not _build_release_symbols:
     _strip_binaries(DIST_DIR)
+_adhoc_codesign_dist(DIST_DIR)
 if _build_avx2 and os.path.isdir(DIST_DIR_AVX2):
     _remove_static_libs(DIST_DIR_AVX2)
     _strip_binaries(DIST_DIR_AVX2)
+    _adhoc_codesign_dist(DIST_DIR_AVX2)
 if _build_debug and os.path.isdir(DIST_DIR_DEBUG) and not _keep_debug_static_libs:
     _remove_static_libs(DIST_DIR_DEBUG)
+    _adhoc_codesign_dist(DIST_DIR_DEBUG)
 if _build_debug_avx2 and os.path.isdir(DIST_DIR_DEBUG_AVX2) and not _keep_debug_static_libs:
     _remove_static_libs(DIST_DIR_DEBUG_AVX2)
+    _adhoc_codesign_dist(DIST_DIR_DEBUG_AVX2)
 
 
 # ── Package ───────────────────────────────────────────────────────────────────
