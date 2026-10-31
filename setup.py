@@ -46,9 +46,8 @@ NPROC    = str(max(1, multiprocessing.cpu_count()))
 SUITESPARSE_TAG = "v7.12.2"
 OPENBLAS_TAG    = "v0.3.31"
 
-# Development of the COIN-OR stack has moved to the "next" branch of each
-# repository (the "master" branch is now the last stable release line).
-COIN_OR_BRANCH  = "next"
+# Build the COIN-OR stack from the master branch.
+COIN_OR_BRANCH  = "master"
 
 # -ffp-contract=off disables the compiler's automatic fusion of separate
 # multiply/add operations into a single FMA instruction. FMA computes the
@@ -137,7 +136,7 @@ def _is_x86_64() -> bool:
     return platform.machine().lower() in ("x86_64", "amd64")
 
 
-def clone_if_missing(name, url, branch="master"):
+def clone_if_missing(name, url, branch="master", *, update_existing_branch=False):
     dest = os.path.join(THIS_DIR, name)
     if not os.path.exists(dest):
         # Use native git directly — avoids routing through MSYS2 where git
@@ -147,6 +146,32 @@ def clone_if_missing(name, url, branch="master"):
             ["git", "clone", "--depth", "1", "--branch", branch, url, dest],
             check=True,
         )
+    elif update_existing_branch:
+        # Existing COIN-OR clones may still be on "next". Fetch the requested
+        # branch and fast-forward it, without discarding local commits or edits.
+        subprocess.run(
+            ["git", "-C", dest, "fetch", "origin", branch],
+            check=True,
+        )
+        branch_exists = subprocess.run(
+            ["git", "-C", dest, "show-ref", "--verify", "--quiet",
+             f"refs/heads/{branch}"],
+            check=False,
+        ).returncode == 0
+        if branch_exists:
+            subprocess.run(
+                ["git", "-C", dest, "checkout", branch],
+                check=True,
+            )
+            subprocess.run(
+                ["git", "-C", dest, "merge", "--ff-only", "FETCH_HEAD"],
+                check=True,
+            )
+        else:
+            subprocess.run(
+                ["git", "-C", dest, "checkout", "-b", branch, "FETCH_HEAD"],
+                check=True,
+            )
     else:
         # Pull the latest commits so that a stale shallow clone never causes
         # API-mismatch build failures (e.g. a new method added to Clp that
@@ -348,7 +373,9 @@ def build_coin_or(dest_dir=None, extra_cxxflags="", extra_ldflags="", is_debug=F
         bld_suffix = "_build_debug"
 
     for name, url in COIN_REPOS:
-        src = clone_if_missing(name, url, COIN_OR_BRANCH)
+        src = clone_if_missing(
+            name, url, COIN_OR_BRANCH, update_existing_branch=True
+        )
         bld = os.path.join(src, bld_suffix)
         os.makedirs(bld, exist_ok=True)
 
@@ -1081,7 +1108,7 @@ if not os.environ.get("CBCBOX_BUILD_ONLY"):
     long_description = """\
 **cbcbox** ships pre-built binaries of the
 [CBC](https://github.com/coin-or/Cbc) MILP solver (COIN-OR Branch and Cut),
-built from the latest next branch of the COIN-OR repositories.
+built from the latest master branch of the COIN-OR repositories.
 
 Built with:
 - OpenBLAS for optimised BLAS/LAPACK routines

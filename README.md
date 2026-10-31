@@ -8,7 +8,7 @@
 
 **cbcbox** is a high-performance, self-contained Python distribution of the
 [CBC](https://github.com/coin-or/Cbc) MILP solver (COIN-OR Branch and Cut),
-built from the latest COIN-OR `next` branch.
+built from the latest COIN-OR `master` branch.
 
 On x86_64 (Linux, macOS, Windows) the wheel ships both a **[Haswell](https://en.wikipedia.org/wiki/Haswell_(microarchitecture))-optimised** binary
 ([AVX2](https://en.wikipedia.org/wiki/Advanced_Vector_Extensions)/[FMA](https://en.wikipedia.org/wiki/FMA_instruction_set)) for maximum speed and a **generic** build with
@@ -196,11 +196,11 @@ in the following order:
 
 | Component | Version / branch | Purpose |
 |---|---|---|
-| **Cbc** | next | Branch-and-cut MIP solver |
-| **Cgl** | next | Cut generation library |
-| **Clp** | next | Simplex LP solver (used as the MIP node relaxation) |
-| **Osi** | next | Open Solver Interface |
-| **CoinUtils** | next | Utility library (shared by all COIN-OR packages) |
+| **Cbc** | master | Branch-and-cut MIP solver |
+| **Cgl** | master | Cut generation library |
+| **Clp** | master | Simplex LP solver (used as the MIP node relaxation) |
+| **Osi** | master | Open Solver Interface |
+| **CoinUtils** | master | Utility library (shared by all COIN-OR packages) |
 | **[AMD](https://github.com/DrTimothyAldenDavis/SuiteSparse)** (SuiteSparse v7.12.2) | v7.12.2 | Sparse matrix fill-reducing ordering |
 | **[OpenBLAS](https://github.com/OpenMathLib/OpenBLAS)** | v0.3.31 | Optimised BLAS/LAPACK for LP basis factorisation |
 
@@ -890,4 +890,3 @@ CBC and all COIN-OR components are distributed under the
 [Eclipse Public License 2.0](https://opensource.org/licenses/EPL-2.0).
 OpenBLAS is distributed under the BSD 3-Clause licence.
 SuiteSparse AMD is distributed under the BSD 3-Clause licence.
-
