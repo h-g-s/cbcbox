@@ -74,7 +74,8 @@ _ABS_TOL = 1e-4   # absolute tolerance (used when expected is near zero)
 
 def _solve_and_get_obj(mps_file: str, cbc_binary: str = None,
                         time_limit: int = 600,
-                        threads: int = 1, timeout: int = None):
+                        threads: int = 1, timeout: int = None,
+                        node_limit: int = None):
     """Run CBC on *mps_file*, return (objective, elapsed_seconds).
 
     Parses the final "Optimal - objective value X" line specifically to avoid
@@ -85,6 +86,8 @@ def _solve_and_get_obj(mps_file: str, cbc_binary: str = None,
     cmd = [cbc_binary or cbcbox.cbc_bin_path(), mps_file, f"-seconds={time_limit}", "-timem", "elapsed"]
     if threads > 1:
         cmd += [f"-threads={threads}"]
+    if node_limit is not None:
+        cmd += [f"-maxNodes={node_limit}"]
     cmd += ["-solve", "-quit"]
     # Prevent OpenBLAS from spawning its own thread pool inside each CBC worker
     # thread.  When CBC runs with -threads N, each worker calls into OpenBLAS;
@@ -164,3 +167,22 @@ def test_solve_parallel(filename, expected, time_limit, cbc_variant, request):
     )
     tol = max(_ABS_TOL, _REL_TOL * abs(expected))
     assert abs(obj - expected) <= tol, f"Expected {expected}, got {obj} (3 threads)"
+
+
+@pytest.mark.parametrize("filename,expected,time_limit", [
+    case for case in CASES if case[0] in {"mas76.mps.gz", "pk1.mps.gz"}
+], ids=lambda x: x if isinstance(x, str) else None)
+def test_bounded_parallel(filename, expected, time_limit, cbc_variant, request):
+    if not request.config.getoption("--bounded-parallel-diagnostics"):
+        pytest.skip("opt-in node-limited parallel diagnostic")
+    _, cbc_binary = cbc_variant
+    # CBC encodes repeatable three-thread search as 100 + 3.
+    obj, elapsed = _solve_and_get_obj(
+        os.path.join(DATA_DIR, filename), cbc_binary, time_limit=time_limit,
+        threads=103, node_limit=1000,
+    )
+    print(f"Bounded diagnostic: nodes<=1000, objective={obj}, elapsed_s={elapsed}")
+    # Both instances minimize; a partial incumbent may be worse, never better
+    # than the certified optimum. Do not mix partial solves into perf reports.
+    tol = max(_ABS_TOL, _REL_TOL * abs(expected))
+    assert obj >= expected - tol, f"Incumbent {obj} beats certified optimum {expected}"

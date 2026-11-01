@@ -38,6 +38,13 @@ def _get_build_variants():
     return variants
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--bounded-parallel-diagnostics", action="store_true", default=False,
+        help="Run the opt-in 1000-node deterministic parallel diagnostics",
+    )
+
+
 def pytest_configure(config):
     config._perf_results = []
 

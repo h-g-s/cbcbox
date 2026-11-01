@@ -21,12 +21,13 @@ on:
         type: boolean
         default: false
       test_scope:
-        description: 'Tests to run: full suite or parallel mas76/pk1 diagnostics'
+        description: 'Tests to run: full suite, parallel repro, or bounded diagnostics'
         required: false
         type: choice
         options:
           - full
           - parallel_repro
+          - bounded_repro
         default: full
       crash_repro:
         description: >-
@@ -136,6 +137,7 @@ jobs:
           CIBW_TEST_COMMAND: >-
             mkdir -p /output && pytest {package}/tests/ -v
             ${{ inputs.test_scope == 'parallel_repro' && '-k "test_solve_parallel and (mas76 or pk1)" --capture=tee-sys' || '' }}
+            ${{ inputs.test_scope == 'bounded_repro' && '-k test_bounded_parallel --bounded-parallel-diagnostics --capture=tee-sys' || '' }}
         with:
           package-dir: .
           output-dir: wheelhouse
@@ -235,6 +237,7 @@ jobs:
           CIBW_TEST_COMMAND: >-
             pytest {package}/tests/ -v
             ${{ inputs.test_scope == 'parallel_repro' && '-k "test_solve_parallel and (mas76 or pk1)" --capture=tee-sys' || '' }}
+            ${{ inputs.test_scope == 'bounded_repro' && '-k test_bounded_parallel --bounded-parallel-diagnostics --capture=tee-sys' || '' }}
         with:
           package-dir: .
           output-dir: wheelhouse
@@ -393,6 +396,7 @@ jobs:
           CIBW_TEST_COMMAND: >-
             mkdir -p /output && pytest {package}/tests/ -v
             ${{ inputs.test_scope == 'parallel_repro' && '-k "test_solve_parallel and (mas76 or pk1)" --capture=tee-sys' || '' }}
+            ${{ inputs.test_scope == 'bounded_repro' && '-k test_bounded_parallel --bounded-parallel-diagnostics --capture=tee-sys' || '' }}
         with:
           package-dir: .
           output-dir: wheelhouse
@@ -518,6 +522,7 @@ jobs:
           CIBW_TEST_COMMAND: >-
             pytest {package}/tests/ -v
             ${{ inputs.test_scope == 'parallel_repro' && '-k "test_solve_parallel and (mas76 or pk1)" --capture=tee-sys' || '' }}
+            ${{ inputs.test_scope == 'bounded_repro' && '-k test_bounded_parallel --bounded-parallel-diagnostics --capture=tee-sys' || '' }}
         with:
           package-dir: .
           output-dir: wheelhouse
@@ -911,6 +916,7 @@ jobs:
           CIBW_TEST_COMMAND: >-
             pytest {package}/tests/ -v
             ${{ inputs.test_scope == 'parallel_repro' && '-k "test_solve_parallel and (mas76 or pk1)" --capture=tee-sys' || '' }}
+            ${{ inputs.test_scope == 'bounded_repro' && '-k test_bounded_parallel --bounded-parallel-diagnostics --capture=tee-sys' || '' }}
         with:
           package-dir: .
           output-dir: wheelhouse
@@ -1005,7 +1011,7 @@ jobs:
 
   publish-to-testpypi:
     name: Publish Python wheels to TestPyPI
-    if: github.event.inputs.windows_only != 'true' && inputs.test_scope != 'parallel_repro' && github.event.inputs.publish == 'testpypi'
+    if: github.event.inputs.windows_only != 'true' && (inputs.test_scope == 'full' || inputs.test_scope == '') && github.event.inputs.publish == 'testpypi'
     needs:
       - package-linux-arm64
       - package-macos-arm64
@@ -1037,7 +1043,7 @@ jobs:
 
   publish-to-pypi:
     name: Publish Python wheels to PyPI
-    if: github.event.inputs.windows_only != 'true' && inputs.test_scope != 'parallel_repro' && github.event.inputs.publish == 'pypi'
+    if: github.event.inputs.windows_only != 'true' && (inputs.test_scope == 'full' || inputs.test_scope == '') && github.event.inputs.publish == 'pypi'
     needs:
       - package-linux-arm64
       - package-macos-arm64
