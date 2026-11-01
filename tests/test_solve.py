@@ -95,6 +95,11 @@ def _solve_and_get_obj(mps_file: str, cbc_binary: str = None,
     result = subprocess.run(cmd, capture_output=True, text=True,
                             timeout=timeout or (time_limit + 120), env=env)
     output = result.stdout + result.stderr
+    # pytest shows captured output on failure, including CBC's termination reason.
+    print(output)
+    assert result.returncode == 0, (
+        f"CBC exited with returncode={result.returncode}.\nOutput:\n{output}"
+    )
     # Look for the definitive result lines (last wins in case of duplicates):
     #   "Optimal - objective value 7350.00000000"
     #   "Result - Stopped on time limit\nObjective value: 130.000"

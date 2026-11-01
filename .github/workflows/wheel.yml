@@ -20,6 +20,14 @@ on:
         required: false
         type: boolean
         default: false
+      test_scope:
+        description: 'Tests to run: full suite or parallel mas76/pk1 diagnostics'
+        required: false
+        type: choice
+        options:
+          - full
+          - parallel_repro
+        default: full
       crash_repro:
         description: >-
           Also build the Windows release+symbols variant and run the gdb
@@ -125,7 +133,9 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: "PERF_REPORT_DIR=/output"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""
           CIBW_TEST_REQUIRES: "pytest"
-          CIBW_TEST_COMMAND: "mkdir -p /output && pytest {package}/tests/ -v"
+          CIBW_TEST_COMMAND: >-
+            mkdir -p /output && pytest {package}/tests/ -v
+            ${{ inputs.test_scope == 'parallel_repro' && '-k "test_solve_parallel and (mas76 or pk1)" --capture=tee-sys' || '' }}
         with:
           package-dir: .
           output-dir: wheelhouse
@@ -222,7 +232,9 @@ jobs:
             which gfortran || brew install gcc
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
           CIBW_TEST_REQUIRES: "pytest"
-          CIBW_TEST_COMMAND: "pytest {package}/tests/ -v"
+          CIBW_TEST_COMMAND: >-
+            pytest {package}/tests/ -v
+            ${{ inputs.test_scope == 'parallel_repro' && '-k "test_solve_parallel and (mas76 or pk1)" --capture=tee-sys' || '' }}
         with:
           package-dir: .
           output-dir: wheelhouse
@@ -378,7 +390,9 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: "PERF_REPORT_DIR=/output"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""
           CIBW_TEST_REQUIRES: "pytest"
-          CIBW_TEST_COMMAND: "mkdir -p /output && pytest {package}/tests/ -v"
+          CIBW_TEST_COMMAND: >-
+            mkdir -p /output && pytest {package}/tests/ -v
+            ${{ inputs.test_scope == 'parallel_repro' && '-k "test_solve_parallel and (mas76 or pk1)" --capture=tee-sys' || '' }}
         with:
           package-dir: .
           output-dir: wheelhouse
@@ -501,7 +515,9 @@ jobs:
             which gfortran || brew install gcc
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
           CIBW_TEST_REQUIRES: "pytest"
-          CIBW_TEST_COMMAND: "pytest {package}/tests/ -v"
+          CIBW_TEST_COMMAND: >-
+            pytest {package}/tests/ -v
+            ${{ inputs.test_scope == 'parallel_repro' && '-k "test_solve_parallel and (mas76 or pk1)" --capture=tee-sys' || '' }}
         with:
           package-dir: .
           output-dir: wheelhouse
@@ -892,7 +908,9 @@ jobs:
           CIBW_BEFORE_ALL_WINDOWS: ""
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: ""
           CIBW_TEST_REQUIRES: "pytest"
-          CIBW_TEST_COMMAND: "pytest {package}/tests/ -v"
+          CIBW_TEST_COMMAND: >-
+            pytest {package}/tests/ -v
+            ${{ inputs.test_scope == 'parallel_repro' && '-k "test_solve_parallel and (mas76 or pk1)" --capture=tee-sys' || '' }}
         with:
           package-dir: .
           output-dir: wheelhouse
@@ -987,7 +1005,7 @@ jobs:
 
   publish-to-testpypi:
     name: Publish Python wheels to TestPyPI
-    if: github.event.inputs.windows_only != 'true' && github.event.inputs.publish == 'testpypi'
+    if: github.event.inputs.windows_only != 'true' && inputs.test_scope != 'parallel_repro' && github.event.inputs.publish == 'testpypi'
     needs:
       - package-linux-arm64
       - package-macos-arm64
@@ -1019,7 +1037,7 @@ jobs:
 
   publish-to-pypi:
     name: Publish Python wheels to PyPI
-    if: github.event.inputs.windows_only != 'true' && github.event.inputs.publish == 'pypi'
+    if: github.event.inputs.windows_only != 'true' && inputs.test_scope != 'parallel_repro' && github.event.inputs.publish == 'pypi'
     needs:
       - package-linux-arm64
       - package-macos-arm64
@@ -1048,4 +1066,3 @@ jobs:
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         repository-url: https://upload.pypi.org/legacy/
-
