@@ -4,6 +4,7 @@ import os
 import platform
 import re
 import subprocess
+from types import SimpleNamespace
 
 import pytest
 
@@ -71,6 +72,14 @@ CASES = [
 
 _REL_TOL = 1e-6   # relative tolerance for objective comparison
 _ABS_TOL = 1e-4   # absolute tolerance (used when expected is near zero)
+
+# These parallel searches otherwise consume most of the CI job's time budget.
+_PARALLEL_NODE_LIMITS = {
+    name: 1000 for name in (
+        "pp08a.mps.gz", "pk1.mps.gz", "mas76.mps.gz", "qiu.mps.gz",
+        "swath1.mps.gz", "markshare_4_0.mps.gz",
+    )
+}
 
 
 def _solve_and_get_obj(mps_file: str, cbc_binary: str = None,
@@ -228,15 +237,49 @@ def test_solve(filename, expected, time_limit, cbc_variant, request):
 @pytest.mark.parametrize("filename,expected,time_limit", CASES,
                          ids=lambda x: x if isinstance(x, str) else None)
 def test_solve_parallel(filename, expected, time_limit, cbc_variant, request):
-    """Same instances solved with 3 threads to verify --enable-cbc-parallel."""
+    """Same instances solved with 3 deterministic parallel workers."""
     variant_name, cbc_binary = cbc_variant
     mps_file = os.path.join(DATA_DIR, filename)
-    obj, elapsed, status = _solve_and_get_obj(mps_file, cbc_binary, time_limit=time_limit, threads=3)
+    node_limit = _PARALLEL_NODE_LIMITS.get(filename)
+    # CBC encodes repeatable three-thread search as 100 + 3.
+    obj, elapsed, status = _solve_and_get_obj(
+        mps_file, cbc_binary, time_limit=time_limit, threads=103,
+        node_limit=node_limit,
+    )
     request.config._perf_results.append(
         {"instance": filename, "threads": 3, "elapsed_s": elapsed,
-         "objective": obj, "build_variant": variant_name, "status": status}
+         "objective": obj, "build_variant": variant_name, "status": status,
+         "node_limit": node_limit, "deterministic": True}
     )
     _assert_objective(obj, expected, status)
+
+
+@pytest.mark.parametrize("filename,node_limit", [
+    ("pp08a.mps.gz", 1000), ("pk1.mps.gz", 1000),
+    ("mas76.mps.gz", 1000), ("qiu.mps.gz", 1000),
+    ("swath1.mps.gz", 1000), ("markshare_4_0.mps.gz", 1000),
+    ("air03.mps.gz", None),
+])
+def test_parallel_search_budget(monkeypatch, filename, node_limit):
+    results = []
+    request = SimpleNamespace(config=SimpleNamespace(_perf_results=results))
+    commands = []
+
+    def run(cmd, **kwargs):
+        commands.append(cmd)
+        return subprocess.CompletedProcess(
+            cmd, 0, "Result - Stopped on time limit\nNo feasible solution found\n", ""
+        )
+
+    monkeypatch.setattr(subprocess, "run", run)
+    test_solve_parallel(filename, 1.0, 2000, ("generic", "/fake/cbc"), request)
+    assert "-threads=103" in commands[0]
+    assert "-seconds=2000" in commands[0]
+    assert [arg for arg in commands[0] if arg.startswith("-maxNodes=")] == (
+        [f"-maxNodes={node_limit}"] if node_limit is not None else []
+    )
+    assert results[0]["threads"] == 3
+    assert results[0]["node_limit"] == node_limit
 
 
 @pytest.mark.parametrize("filename,expected,time_limit", [
