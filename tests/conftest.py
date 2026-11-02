@@ -227,9 +227,10 @@ def pytest_sessionfinish(session, exitstatus):
         ]
         for r in results:
             elapsed = f"{r['elapsed_s']:.2f}" if r['elapsed_s'] is not None else "n/a"
+            objective = f"{r['objective']:.1f}" if r['objective'] is not None else "n/a"
             lines.append(
                 f"| `{r['instance']}` | {r.get('build_variant', 'generic')} "
-                f"| {r['threads']} | {elapsed} | {r['objective']:.1f} |"
+                f"| {r['threads']} | {elapsed} | {objective} |"
             )
         lines.append("")
 

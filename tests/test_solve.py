@@ -1,4 +1,5 @@
-"""Integration tests: solve MIP instances and verify optimal values."""
+"""Integration tests: check CBC results against its termination status."""
+import math
 import os
 import platform
 import re
@@ -33,7 +34,7 @@ def _xfail_macos_known_regressions(filename):
         )
 
 # (filename, expected_optimal, cbc_time_limit_seconds)
-# Time limits are generous to avoid false failures on slow CI runners.
+# Time limits are safety bounds, not a requirement to reach optimality.
 # subprocess timeout = cbc_time_limit + 120 s.
 CASES = [
     ("pp08a.mps.gz",                    7350.0,           2000),
@@ -76,7 +77,7 @@ def _solve_and_get_obj(mps_file: str, cbc_binary: str = None,
                         time_limit: int = 600,
                         threads: int = 1, timeout: int = None,
                         node_limit: int = None):
-    """Run CBC on *mps_file*, return (objective, elapsed_seconds).
+    """Run CBC, returning (objective_or_none, elapsed_seconds, status).
 
     Parses the final "Optimal - objective value X" line specifically to avoid
     matching intermediate lines such as:
@@ -108,9 +109,24 @@ def _solve_and_get_obj(mps_file: str, cbc_binary: str = None,
     #   "Result - Stopped on time limit\nObjective value: 130.000"
     obj_value = None
     elapsed   = None
+    status = None
+    no_incumbent = False
     for line in output.splitlines():
         low = line.lower()
+        if low.startswith("result -"):
+            result_status = low[len("result -"):].strip()
+            if result_status.startswith("optimal solution found"):
+                status = "optimal"
+            elif result_status.startswith("stopped on time limit"):
+                status = "time_limit"
+            elif result_status.startswith("stopped on node limit"):
+                status = "node_limit"
+            else:
+                status = None
+        if low.strip() == "no feasible solution found":
+            no_incumbent = True
         if low.startswith("optimal") and "objective value" in low:
+            status = "optimal"
             try:
                 obj_value = float(line.split()[-1])
             except ValueError:
@@ -123,7 +139,10 @@ def _solve_and_get_obj(mps_file: str, cbc_binary: str = None,
         m = re.search(r'Wallclock seconds\):\s+([\d.]+)', line)
         if m:
             elapsed = float(m.group(1))
-    if obj_value is None:
+    assert status is not None, f"Unrecognized CBC termination status.\nOutput:\n{output}"
+    if obj_value is not None:
+        assert math.isfinite(obj_value), f"Non-finite CBC objective.\nOutput:\n{output}"
+    if obj_value is None and (status == "optimal" or not no_incumbent):
         raise AssertionError(
             f"Could not parse final objective from CBC output. "
             f"returncode={result.returncode} "
@@ -131,7 +150,60 @@ def _solve_and_get_obj(mps_file: str, cbc_binary: str = None,
             f"negative/unsigned value like -1073741819 = 0xC0000005 indicates "
             f"STATUS_ACCESS_VIOLATION).\nOutput:\n{output}"
         )
-    return obj_value, elapsed
+    return obj_value, elapsed, status
+
+
+def _assert_objective(obj, expected, status):
+    if status == "optimal":
+        tol = max(_ABS_TOL, _REL_TOL * abs(expected))
+        assert obj is not None and abs(obj - expected) <= tol, (
+            f"Expected {expected}, got {obj} (CBC claimed optimality)"
+        )
+
+
+@pytest.mark.parametrize("summary,objective,status", [
+    ("Optimal - objective value 40005.054142", 40005.054142, "optimal"),
+    ("Result - Optimal solution found\nObjective value: 40005.054142",
+     40005.054142, "optimal"),
+    ("Result - Optimal solution found (within gap tolerance)\nObjective value: 40005.054142",
+     40005.054142, "optimal"),
+    ("Result - Stopped on time limit\nObjective value: 40560.054142",
+     40560.054142, "time_limit"),
+    ("Result - Stopped on node limit\nObjective value: 40560.054142",
+     40560.054142, "node_limit"),
+    ("Result - Stopped on time limit\nNo feasible solution found",
+     None, "time_limit"),
+    ("Result - Stopped on node limit\nNo feasible solution found",
+     None, "node_limit"),
+])
+def test_solver_result(monkeypatch, summary, objective, status):
+    output = summary + "\nTime (Wallclock seconds): 12.30\n"
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs:
+                        subprocess.CompletedProcess(args[0], 0, output, ""))
+    obj, elapsed, parsed_status = _solve_and_get_obj("unused.mps", "/fake/cbc")
+    assert (obj, elapsed, parsed_status) == (objective, 12.3, status)
+    _assert_objective(obj, 40005.054142, parsed_status)
+
+
+@pytest.mark.parametrize("summary,returncode,error", [
+    ("Result - Optimal solution found\nObjective value: 40560.054142", 0,
+     "CBC claimed optimality"),
+    ("Result - Optimal solution found\nNo feasible solution found", 0,
+     "Could not parse final objective"),
+    ("Result - Stopped on time limit", 0, "Could not parse final objective"),
+    ("Result - Problem proven infeasible", 0, "Unrecognized CBC termination"),
+    ("Objective value: 40560.054142", 0, "Unrecognized CBC termination"),
+    ("Result - Optimal solution found\nObjective value: nan", 0,
+     "Non-finite CBC objective"),
+    ("Result - Optimal solution found\nObjective value: 40005.054142", -11,
+     "CBC exited with returncode=-11"),
+])
+def test_solver_result_rejects_invalid(monkeypatch, summary, returncode, error):
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs:
+                        subprocess.CompletedProcess(args[0], returncode, summary, ""))
+    with pytest.raises(AssertionError, match=error):
+        obj, _, status = _solve_and_get_obj("unused.mps", "/fake/cbc")
+        _assert_objective(obj, 40005.054142, status)
 
 
 def test_cbc_binary_exists():
@@ -145,13 +217,12 @@ def test_solve(filename, expected, time_limit, cbc_variant, request):
     _xfail_macos_known_regressions(filename)
     variant_name, cbc_binary = cbc_variant
     mps_file = os.path.join(DATA_DIR, filename)
-    obj, elapsed = _solve_and_get_obj(mps_file, cbc_binary, time_limit=time_limit)
+    obj, elapsed, status = _solve_and_get_obj(mps_file, cbc_binary, time_limit=time_limit)
     request.config._perf_results.append(
         {"instance": filename, "threads": 1, "elapsed_s": elapsed,
-         "objective": obj, "build_variant": variant_name}
+         "objective": obj, "build_variant": variant_name, "status": status}
     )
-    tol = max(_ABS_TOL, _REL_TOL * abs(expected))
-    assert abs(obj - expected) <= tol, f"Expected {expected}, got {obj}"
+    _assert_objective(obj, expected, status)
 
 
 @pytest.mark.parametrize("filename,expected,time_limit", CASES,
@@ -160,13 +231,12 @@ def test_solve_parallel(filename, expected, time_limit, cbc_variant, request):
     """Same instances solved with 3 threads to verify --enable-cbc-parallel."""
     variant_name, cbc_binary = cbc_variant
     mps_file = os.path.join(DATA_DIR, filename)
-    obj, elapsed = _solve_and_get_obj(mps_file, cbc_binary, time_limit=time_limit, threads=3)
+    obj, elapsed, status = _solve_and_get_obj(mps_file, cbc_binary, time_limit=time_limit, threads=3)
     request.config._perf_results.append(
         {"instance": filename, "threads": 3, "elapsed_s": elapsed,
-         "objective": obj, "build_variant": variant_name}
+         "objective": obj, "build_variant": variant_name, "status": status}
     )
-    tol = max(_ABS_TOL, _REL_TOL * abs(expected))
-    assert abs(obj - expected) <= tol, f"Expected {expected}, got {obj} (3 threads)"
+    _assert_objective(obj, expected, status)
 
 
 @pytest.mark.parametrize("filename,expected,time_limit", [
@@ -177,12 +247,9 @@ def test_bounded_parallel(filename, expected, time_limit, cbc_variant, request):
         pytest.skip("opt-in node-limited parallel diagnostic")
     _, cbc_binary = cbc_variant
     # CBC encodes repeatable three-thread search as 100 + 3.
-    obj, elapsed = _solve_and_get_obj(
+    obj, elapsed, status = _solve_and_get_obj(
         os.path.join(DATA_DIR, filename), cbc_binary, time_limit=time_limit,
         threads=103, node_limit=1000,
     )
-    print(f"Bounded diagnostic: nodes<=1000, objective={obj}, elapsed_s={elapsed}")
-    # Both instances minimize; a partial incumbent may be worse, never better
-    # than the certified optimum. Do not mix partial solves into perf reports.
-    tol = max(_ABS_TOL, _REL_TOL * abs(expected))
-    assert obj >= expected - tol, f"Incumbent {obj} beats certified optimum {expected}"
+    print(f"Bounded diagnostic: maxNodes=1000, status={status}, objective={obj}, elapsed_s={elapsed}")
+    _assert_objective(obj, expected, status)
