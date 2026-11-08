@@ -220,6 +220,21 @@ def test_cbc_binary_exists():
     assert os.path.isfile(path), f"cbc binary not found at {path}"
 
 
+def test_lp_reoptimization_options(cbc_variant):
+    _, cbc_binary = cbc_variant
+    result = subprocess.run(
+        [cbc_binary, os.path.join(DATA_DIR, "pp08a.mps.gz"),
+         "-reoptMethod", "primal", "-reoptPresolve", "off",
+         "-reoptPertValue", "100", "-maxNodes", "100", "-solve", "-quit"],
+        capture_output=True, text=True, timeout=120,
+    )
+    output = result.stdout + result.stderr
+    assert result.returncode == 0, output
+    assert "Unrecognized parameter" not in output, output
+    assert "Illegal parameter" not in output, output
+    assert "Result - " in output, output
+
+
 @pytest.mark.parametrize("filename,expected,time_limit", CASES,
                          ids=lambda x: x if isinstance(x, str) else None)
 def test_solve(filename, expected, time_limit, cbc_variant, request):
